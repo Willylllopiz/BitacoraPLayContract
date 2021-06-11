@@ -42,7 +42,7 @@ contract BitacoraPlay{
         users[rootAddress].referrer = address(0);
         idToAddress[1] = rootAddress;
     }
-    
+        
      function registration(address userAddress, address referrerAddress) private {
         require(!isUserExists(userAddress), "user exists");
         require(isUserExists(referrerAddress), "referrer not exists");
@@ -61,6 +61,7 @@ contract BitacoraPlay{
         
         user[referrerAddress].referrals = userAddress;
         user[referrerAddress].activeMembers +=1;
+        updateActivemembers(4, user[referrerAddress].referrer);
         
         emit SignUpEvent(userAddress, users[userAddress].id, referrerAddress, users[referrerAddress].id);
         // repartir ganancias!!!!!!!!!!!!!
@@ -73,7 +74,10 @@ contract BitacoraPlay{
     }
     
     function updateActivemembers(uint _level, address _referrerAddress){
-        if(level > 0 && _referrerAddress != rootAddress )
+        if(level > 0 && _referrerAddress != rootAddress && _referrerAddress != address(0)){
+            user[_referrerAddress].activeMembers +=1;
+            updateActivemembers(level-=1, user[_referrerAddress].referrer)
+        }
     }
 
 }
