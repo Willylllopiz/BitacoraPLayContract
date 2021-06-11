@@ -3,7 +3,7 @@ pragma solidity ^0.5.10;
 contract BitacoraPlay{
     event SignUpEvent(address indexed _newUser, uint indexed _userId, address indexed _sponsor, uint _sponsorId);
     
-    ennum Range{
+    enum Range { 
         Rookie,
         Junior,
         Leader,
@@ -59,9 +59,9 @@ contract BitacoraPlay{
         
         lastUserId++;
         
-        user[referrerAddress].referrals = userAddress;
-        user[referrerAddress].activeMembers +=1;
-        updateActivemembers(4, user[referrerAddress].referrer);
+        users[referrerAddress].referrals.push(userAddress);
+        users[referrerAddress].activeMembers +=1;
+        updateActivemembers(4, users[referrerAddress].referrer);
         
         emit SignUpEvent(userAddress, users[userAddress].id, referrerAddress, users[referrerAddress].id);
         // repartir ganancias!!!!!!!!!!!!!
@@ -73,11 +73,15 @@ contract BitacoraPlay{
         registration(msg.sender, referrerAddress);
     }
     
-    function updateActivemembers(uint _level, address _referrerAddress){
-        if(level > 0 && _referrerAddress != rootAddress && _referrerAddress != address(0)){
-            user[_referrerAddress].activeMembers +=1;
-            updateActivemembers(level-=1, user[_referrerAddress].referrer)
+    function updateActivemembers(uint _level, address _referrerAddress) private {
+        if(_level > 0 && _referrerAddress != rootAddress && _referrerAddress != address(0)){
+            users[_referrerAddress].activeMembers +=1;
+            updateActivemembers(_level-=1, users[_referrerAddress].referrer);
         }
+    }
+    
+    function isUserExists(address user) public view returns (bool) {
+        return (users[user].id != 0);
     }
 
 }
