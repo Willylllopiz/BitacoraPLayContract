@@ -3,7 +3,7 @@ pragma solidity ^0.5.10;
 contract BitacoraPlay{
     event SignUpEvent(address indexed _newUser, uint indexed _userId, address indexed _sponsor, uint _sponsorId);
     
-    ennum Range{
+    enum Range { 
         Rookie,
         Junior,
         Leader,
@@ -13,10 +13,10 @@ contract BitacoraPlay{
     struct User {
         uint id;
         address referrer;
-        Range range;
-        uint activeMembers;
+        Range referPlan;
         address[] referrals;
-        
+        uint256 inscriptionDate;
+        uint256 activationDate;//revisar la activacion debe ser segun el plan o algo asi
     }
     
     uint public lastUserId = 2;
@@ -42,8 +42,27 @@ contract BitacoraPlay{
         users[rootAddress].referrer = address(0);
         idToAddress[1] = rootAddress;
     }
+
+    function() external payable {
+        require(msg.value == 5000000000000, "invalid registration cost");
+        if(msg.data.length == 0) {
+            return registration(msg.sender, rootAddress);
+        }
+        registration(msg.sender, bytesToAddress(msg.data));
+    }
     
-     function registration(address userAddress, address referrerAddress) private {
+    function bytesToAddress(bytes memory bys) private pure returns (address addr) {
+        assembly {
+            addr := mload(add(bys, 20))
+        }
+    }
+
+    function withdrawLostTRXFromBalance() public {
+        require(msg.sender == owner, "onlyOwner");
+        address(uint160(owner)).transfer(address(this).balance);
+    }
+        
+    function registration(address userAddress, address referrerAddress) private {
         require(!isUserExists(userAddress), "user exists");
         require(isUserExists(referrerAddress), "referrer not exists");
 
@@ -56,24 +75,38 @@ contract BitacoraPlay{
         idToAddress[lastUserId] = userAddress;
         users[userAddress].id = lastUserId;
         users[userAddress].referrer = referrerAddress;
+        users[userAddress].referPlan = Range.Rookie;
         
         lastUserId++;
         
-        user[referrerAddress].referrals = userAddress;
-        user[referrerAddress].activeMembers +=1;
+        users[referrerAddress].referrals.push(userAddress);
+        users[referrerAddress].inscriptionDate = now;
+        users[referrerAddress].activationDate = now;
         
         emit SignUpEvent(userAddress, users[userAddress].id, referrerAddress, users[referrerAddress].id);
         // repartir ganancias!!!!!!!!!!!!!
         
      }
+
+    function signUpAdmin(address _user, address _sponsor) external restricted returns(string memory) {
+        registration(_user, _sponsor);
+        return "registration successful";
+    }
      
     function signUp(address referrerAddress) external payable {
         require(msg.value == 5000000000000, "invalid registration cost");
         registration(msg.sender, referrerAddress);
     }
     
-    function updateActivemembers(uint _level, address _referrerAddress){
-        if(level > 0 && _referrerAddress != rootAddress )
+    // function updateActivemembers(uint _level, address _referrerAddress) private {
+    //     if(_level > 0 && _referrerAddress != rootAddress && _referrerAddress != address(0)){
+    //         users[_referrerAddress].activeMembers +=1;
+    //         updateActivemembers(_level-=1, users[_referrerAddress].referrer);
+    //     }
+    // }
+    
+    function isUserExists(address user) public view returns (bool) {
+        return (users[user].id != 0);
     }
 
 }
