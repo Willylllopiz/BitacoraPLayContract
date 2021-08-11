@@ -1,2 +1,2 @@
-# BitacoraPLayCntract
+# BitacoraPLayContract
 solidity
