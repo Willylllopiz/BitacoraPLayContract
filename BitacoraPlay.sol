@@ -30,6 +30,7 @@ contract BitacoraPlay{
         uint256 activationDate;
         
         uint withDrawl;
+        uint monyBox;
     }
     
     struct RangeConfig {
@@ -41,6 +42,13 @@ contract BitacoraPlay{
         uint surplus;
         uint remainderVehicleBonus;
     }
+    
+    struct PendingBonus {
+        address[] users;
+        uint[] usersAmount;
+        Range [] userRange;
+    }
+    PendingBonus pendingBonusBuilder;
     
     uint8 public currentStartingLevel = 1;
     uint8 public constant ACTIVE_LEVEL = 5;
@@ -233,10 +241,16 @@ contract BitacoraPlay{
       //   Almacenar las ganancias del rango que esta dejando atras 
       //   para su futura extraccion, cambia de rango y transforma las variables
       //   del usuario para el nuevo conteo del siguiente bono
-      
-      users[userAddress].withDrawl += rangeConfig[uint(users[userAddress].referRange)].bonusValue;
       users[userAddress].accumulatedPayments -= rangeConfig[uint(users[userAddress].referRange)].bonusValue;
-      users[rootAddress].withDrawl += rangeConfig[uint(users[userAddress].referRange)].surplus; //el surplus lo envio directo a la raiz
+      if (users[userAddress].referRange == Range.Junior){
+          users[userAddress].monyBox += rangeConfig[uint(users[userAddress].referRange)].bonusValue; //si estamos en el rango junior se envia el bono al money box
+      }
+      else{
+          pendingBonusBuilder.users.push( userAddress );
+          pendingBonusBuilder.usersAmount.push( rangeConfig[ uint(users[ userAddress ].referRange) ].bonusValue);
+          pendingBonusBuilder.userRange.push( users[userAddress].referRange );
+      }
+      users[rootAddress].withDrawl += rangeConfig[uint(users[userAddress].referRange)].surplus; //el excedente lo envio directo a la raiz o a la billetera externa preguntar y cambiar?????
       emit BonusAvailableToCollectEvent(userAddress, users[userAddress].id, users[userAddress].referRange);
       
     // Updating number of assets of the same network
