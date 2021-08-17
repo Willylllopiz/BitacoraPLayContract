@@ -22,9 +22,10 @@ contract BitacoraPlay{
         Range referRange;
         address[] referrals;
         
-        uint accumulatedMembers;
-        uint accumulatedDirectMembers;
-        uint accumulatedPayment;
+        uint accumulatedMembers; //Cantidad acumulada de miembros de hasta el quinto nivel
+        uint accumulatedDirectMembers; //cantidad acumulada de referidos directos para uso de los bonos
+        uint accumulatedPayments; //cantidad acumulada de pagos para la distribucion del bono actual del usuario
+        uint accumulatedDirectReferralPayments; //cantidad acumulada de pagos directos de referidos para el pago del 60 % 
         
         uint256 activationDate;
         
@@ -32,7 +33,7 @@ contract BitacoraPlay{
     }
     
     struct RangeConfig {
-        uint activeAssets;
+        uint assetsDirect;
         uint assetsSameNetwork;
         uint8 qualifyingCycles;
         
@@ -44,8 +45,10 @@ contract BitacoraPlay{
     uint8 public currentStartingLevel = 1;
     uint8 public constant ACTIVE_LEVEL = 5;
     uint public lastUserId = 2;
-    uint public refererPlanPrice = 100 trx;
-    uint internal externalSurplus;
+    
+    // Referral Plan Payments
+    uint public referralPlanPrice = 35 trx;
+    uint public referralDirectPayment = 18 trx; //60% of referralPlanPrice
     
     
     mapping(address => User) public users;
@@ -62,15 +65,21 @@ contract BitacoraPlay{
         _;
     }
     
-    function getSurplus() external restricted view returns(uint){
-        return externalSurplus;
+    function withdrawLostTRXFromBalance() public {
+        require(msg.sender == owner, "onlyOwner");
+        address(uint160(owner)).transfer(address(this).balance);
     }
     
-    function withdrawSurplus() public {
-        require(msg.sender == owner, "onlyOwner");
-        address(uint160(owner)).transfer(externalSurplus);
-        externalSurplus = 0;
+    function withdrawBalanceOfReferredPlan () public {
+        require(isUserExists(msg.sender), "user is not exists. Register first.");
+        require(block.timestamp < users[msg.sender].activationDate, "user is not active, Pay membership.");
+        require(users[msg.sender].accumulatedDirectReferralPayments > 100 trx, "you do not have enough balance to withdraw.");
+        address(uint160(msg.sender)).transfer(users[msg.sender].accumulatedDirectReferralPayments);
     }
+    
+    // function withDrawBonus () public{
+    //     require(isUserExists(msg.sender), "user is not exists. Register first.");
+    // }
     
     constructor(address _externalAddress, address _rootAddress) public {
         owner = msg.sender;
@@ -85,12 +94,9 @@ contract BitacoraPlay{
     }
     
     function initializeValues() internal {
-        // levelDistribution[5] = 60; //
-        externalSurplus = 0 trx;
-        
         // Rookie Bonus Configuration
         rangeConfig[ uint(Range.Rookie) ] = RangeConfig({
-            activeAssets: 0,
+            assetsDirect: 0,
             assetsSameNetwork: 0,
             qualifyingCycles: 0,
             bonusValue: 0 trx,
@@ -99,7 +105,7 @@ contract BitacoraPlay{
         });
         // Junior Bonus Configuration
         rangeConfig [ uint(Range.Junior) ] = RangeConfig({
-            activeAssets: 30,
+            assetsDirect: 30,
             assetsSameNetwork: 3000,
             qualifyingCycles: 1,
             bonusValue: 500 trx,
@@ -109,7 +115,7 @@ contract BitacoraPlay{
         });
         // Leader Bonus Configuration
         rangeConfig[ uint(Range.Leader) ] = RangeConfig({
-            activeAssets: 100,
+            assetsDirect: 100,
             assetsSameNetwork: 7000,
             qualifyingCycles: 2,
             bonusValue: 1800 trx,
@@ -118,7 +124,7 @@ contract BitacoraPlay{
         });
         // Guru Bonus Configuration
         rangeConfig[ uint(Range.Guru) ] = RangeConfig({
-            activeAssets: 300,
+            assetsDirect: 300,
             assetsSameNetwork: 20000,
             qualifyingCycles: 2,
             bonusValue: 4500 trx,
@@ -127,7 +133,7 @@ contract BitacoraPlay{
         });
         // GuruVehicle Bonus Configuration
         rangeConfig[ uint(Range.GuruVehicle) ] = RangeConfig({
-            activeAssets: 300,
+            assetsDirect: 300,
             assetsSameNetwork: 20000,
             qualifyingCycles: 2,
             bonusValue: 0 trx,
@@ -137,7 +143,7 @@ contract BitacoraPlay{
     }
     
     function() external payable {
-        require(msg.value == refererPlanPrice, "invalid registration cost");
+        require(msg.value == referralPlanPrice, "invalid registration cost");
         if(msg.data.length == 0) {
             return registration(msg.sender, rootAddress);
         }
@@ -150,20 +156,19 @@ contract BitacoraPlay{
         }
     }
     
-    function withdrawLostTRXFromBalance() public {
-        require(msg.sender == owner, "onlyOwner");
-        address(uint160(owner)).transfer(address(this).balance);
-    }
-    
     function payMonth(address _user) internal {
-         require(isUserExists(_user), "user is not exists. Register first.");
-         require( block.timestamp + 30 days >  users[_user].activationDate, "user already active this month.");
-         users[_user].activationDate =  block.timestamp;
-         updateActiveMembers(ACTIVE_LEVEL, users[_user].referrer);
+        require(isUserExists(_user), "user is not exists. Register first.");
+        users[_user].activationDate =  block.timestamp + 30 days;
+        users[users[_user].referrer].accumulatedDirectMembers ++;
+        users[users[_user].referrer].accumulatedDirectReferralPayments += referralDirectPayment;
+        users[users[_user].referrer].accumulatedMembers ++;
+        users[users[_user].referrer].accumulatedPayments += 0.36 trx;
+        updateActiveMembers(ACTIVE_LEVEL, users[_user].referrer);
     }
     
     function payMonthly() external payable {
-        require(msg.value == refererPlanPrice, "invalid price");
+        require(msg.value == referralPlanPrice, "invalid price");
+        require( block.timestamp <  users[msg.sender].activationDate, "user already active this month.");
         payMonth(msg.sender);
     }
     
@@ -176,6 +181,7 @@ contract BitacoraPlay{
             size := extcodesize(userAddress)
         }
         require(size == 0, "cannot be a contract");
+        
         idToAddress[lastUserId] = userAddress;
         users[userAddress].id = lastUserId;
         users[userAddress].referrer = referrerAddress;
@@ -183,13 +189,12 @@ contract BitacoraPlay{
        
         lastUserId++;
         
-        users[userAddress].activationDate =  block.timestamp;
-        updateActiveMembers(ACTIVE_LEVEL, referrerAddress);
+        payMonth(userAddress);
         
         users[referrerAddress].referrals.push(userAddress);
         emit NewUserChildEvent(userAddress, referrerAddress, uint16(users[referrerAddress].referrals.length - 1));
         emit SignUpEvent(userAddress, users[userAddress].id, referrerAddress, users[referrerAddress].id);
-        // repartir ganancias!!!!!!!!!!!!!
+        // repartir ganancias del plan carrera!!!!!!!!!!!!!
     }
     
     // Este metodo se debe verificar quien y como paga la inscripcion del nuevo usuario
@@ -199,14 +204,12 @@ contract BitacoraPlay{
     }
     
     function signUp(address referrerAddress) external payable {
-        require(msg.value == refererPlanPrice, "invalid registration cost");
+        require(msg.value == referralPlanPrice, "invalid registration cost");
         registration(msg.sender, referrerAddress);
     }
     
     function updateActiveMembers(uint8 _level, address _referrerAddress) private {
-        if(_level > 0 && _referrerAddress != address(0)){
-            users[_referrerAddress].accumulatedMembers ++;
-            users[_referrerAddress].accumulatedPayment += 0.36 trx;
+        if(_level > 0 && _referrerAddress != rootAddress){
             if (checkRange(_referrerAddress, users[_referrerAddress].referRange)){
                 emit CompletedBonusEvent(_referrerAddress, users[_referrerAddress].id, users[_referrerAddress].referRange);
                 changeRange(_referrerAddress);
@@ -221,28 +224,28 @@ contract BitacoraPlay{
     }
     
     function checkRange(address userAddress, Range _range) public view returns(bool){
-        return users[userAddress].accumulatedMembers == (rangeConfig [ uint(_range)].assetsSameNetwork *
-        rangeConfig [ uint(_range)].qualifyingCycles ) &&
-        users[userAddress].accumulatedDirectMembers == rangeConfig [ uint(_range)].activeAssets;
+        return users[ userAddress ].accumulatedMembers == (rangeConfig[ uint(_range)].assetsSameNetwork *
+        rangeConfig[ uint(_range) ].qualifyingCycles ) &&
+        users[ userAddress ].accumulatedDirectMembers == rangeConfig[ uint(_range) ].assetsDirect;
     }
     
     function changeRange(address userAddress) private {
-      //   Almacenar las ganancias del rango que esta dejando atras para su futura extraccion, cambia de rango y transforma las variables
+      //   Almacenar las ganancias del rango que esta dejando atras 
+      //   para su futura extraccion, cambia de rango y transforma las variables
       //   del usuario para el nuevo conteo del siguiente bono
       
       users[userAddress].withDrawl += rangeConfig[uint(users[userAddress].referRange)].bonusValue;
-      users[userAddress].accumulatedPayment -= rangeConfig[uint(users[userAddress].referRange)].bonusValue;
-      externalSurplus += rangeConfig[uint(users[userAddress].referRange)].surplus;
+      users[userAddress].accumulatedPayments -= rangeConfig[uint(users[userAddress].referRange)].bonusValue;
+      users[rootAddress].withDrawl += rangeConfig[uint(users[userAddress].referRange)].surplus; //el surplus lo envio directo a la raiz
       emit BonusAvailableToCollectEvent(userAddress, users[userAddress].id, users[userAddress].referRange);
-      
       
     // Updating number of assets of the same network
       users[userAddress].accumulatedMembers = users[userAddress].accumulatedMembers - rangeConfig[uint(users[userAddress].referRange)].assetsSameNetwork >=0 
       ? users[userAddress].accumulatedMembers - rangeConfig[uint(users[userAddress].referRange)].assetsSameNetwork
       : 0;
     // Updating number of direct assets
-      users[userAddress].accumulatedDirectMembers = users[userAddress].accumulatedDirectMembers - rangeConfig[uint(users[userAddress].referRange)].activeAssets >=0 
-      ? users[userAddress].accumulatedDirectMembers - rangeConfig[uint(users[userAddress].referRange)].activeAssets
+      users[userAddress].accumulatedDirectMembers = users[userAddress].accumulatedDirectMembers - rangeConfig[uint(users[userAddress].referRange)].assetsDirect >=0 
+      ? users[userAddress].accumulatedDirectMembers - rangeConfig[uint(users[userAddress].referRange)].assetsDirect
       : 0;
     //  Updating Range
       users[userAddress].referRange =  users[userAddress].referRange == Range.Junior ? Range.Leader : 
