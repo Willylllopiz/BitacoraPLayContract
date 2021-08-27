@@ -111,15 +111,25 @@ contract BitacoraPlay{
             surplus: 0 trx,
             remainderVehicleBonus: 0 trx
         });
+        // // Junior Bonus Configuration
+        // rangeConfig [ uint(Range.Junior) ] = RangeConfig({
+        //     assetsDirect: 30,
+        //     assetsSameNetwork: 3000,
+        //     qualifyingCycles: 1,
+        //     bonusValue: 500 trx,
+        //     surplus: 40 trx, // TODO: en el documento dice que sobran 50 y son 40 revisar esto
+        //     remainderVehicleBonus: 540 trx
+
+        // });
+
         // Junior Bonus Configuration
         rangeConfig [ uint(Range.Junior) ] = RangeConfig({
-            assetsDirect: 30,
-            assetsSameNetwork: 3000,
-            qualifyingCycles: 1,
-            bonusValue: 500 trx,
-            surplus: 40 trx, // TODO: en el documento dice que sobran 50 y son 40 revisar esto
-            remainderVehicleBonus: 540 trx
-            
+                assetsDirect: 4,
+                assetsSameNetwork: 10,
+                qualifyingCycles: 1,
+                bonusValue: 1.8 trx,
+                surplus: 0 trx, // TODO: en el documento dice que sobran 50 y son 40 revisar esto
+                remainderVehicleBonus: 1.8 trx
         });
         // Leader Bonus Configuration
         rangeConfig[ uint(Range.Leader) ] = RangeConfig({
