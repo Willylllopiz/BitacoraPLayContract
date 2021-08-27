@@ -544,8 +544,7 @@ contract TransferTestUSDJ{
         balance[receiver] = amount;
     }
 
-    function withDrawal(address tokenAddress) external {
-        msg.va
+    function withdraw(address tokenAddress) external {
         require(tokenAddress != address(depositToken), "cannot withdraw deposit token");
         if (tokenAddress == address(0)) {
             address(uint160(multisig)).transfer(address(this).balance);
