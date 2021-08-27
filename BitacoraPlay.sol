@@ -1,5 +1,9 @@
 pragma solidity ^0.5.10;
-    
+
+contract MoneyBox {
+    function addToBalance(address _user, uint amount) external payable;
+}
+
 contract BitacoraPlay{
     event SignUpEvent(address indexed _newUser, uint indexed _userId, address indexed _sponsor, uint _sponsorId);
     event CompletedBonusEvent(address indexed _user, uint indexed _userId, Range indexed _range);
@@ -30,7 +34,6 @@ contract BitacoraPlay{
         uint256 activationDate;
         
         uint withDrawl;
-        uint monyBox;
     }
     
     struct RangeConfig {
@@ -55,8 +58,8 @@ contract BitacoraPlay{
     uint public lastUserId = 2;
     
     // Referral Plan Payments
-    uint public referralPlanPrice = 35 trx;
-    uint public referralDirectPayment = 18 trx; //60% of referralPlanPrice
+    uint public referralPlanPrice = 35e18;
+    uint public referralDirectPayment = 18e18; //60% of referralPlanPrice
     
     
     mapping(address => User) public users;
@@ -67,6 +70,7 @@ contract BitacoraPlay{
     address public owner;
     address externalAddress;
     address rootAddress;
+    MoneyBox moneyBox;
     
     modifier restricted() {
         require(msg.sender == owner, "restricted");
@@ -81,7 +85,7 @@ contract BitacoraPlay{
     function withdrawBalanceOfReferredPlan () public {
         require(isUserExists(msg.sender), "user is not exists. Register first.");
         require(block.timestamp < users[msg.sender].activationDate, "user is not active, Pay membership.");
-        require(users[msg.sender].accumulatedDirectReferralPayments > 100 trx, "you do not have enough balance to withdraw.");
+        require(users[msg.sender].accumulatedDirectReferralPayments > 100e18, "you do not have enough balance to withdraw.");
         address(uint160(msg.sender)).transfer(users[msg.sender].accumulatedDirectReferralPayments);
     }
     
@@ -89,9 +93,11 @@ contract BitacoraPlay{
     //     require(isUserExists(msg.sender), "user is not exists. Register first.");
     // }
     
-    constructor(address _externalAddress, address _rootAddress) public {
+    constructor(address _externalAddress, address _rootAddress, address _moneyBox) public {
         owner = msg.sender;
         initializeValues();
+
+        moneyBox = MoneyBox(_moneyBox);
         
         externalAddress = _externalAddress;
         rootAddress = _rootAddress;
@@ -107,18 +113,18 @@ contract BitacoraPlay{
             assetsDirect: 0,
             assetsSameNetwork: 0,
             qualifyingCycles: 0,
-            bonusValue: 0 trx,
-            surplus: 0 trx,
-            remainderVehicleBonus: 0 trx
+            bonusValue: 0e18,
+            surplus: 0e18,
+            remainderVehicleBonus: 0e18
         });
         // // Junior Bonus Configuration
         // rangeConfig [ uint(Range.Junior) ] = RangeConfig({
         //     assetsDirect: 30,
         //     assetsSameNetwork: 3000,
         //     qualifyingCycles: 1,
-        //     bonusValue: 500 trx,
-        //     surplus: 40 trx, // TODO: en el documento dice que sobran 50 y son 40 revisar esto
-        //     remainderVehicleBonus: 540 trx
+        //     bonusValue: 500e18,
+        //     surplus: 40e18, // TODO: en el documento dice que sobran 50 y son 40 revisar esto
+        //     remainderVehicleBonus: 540e18
 
         // });
 
@@ -127,36 +133,36 @@ contract BitacoraPlay{
                 assetsDirect: 4,
                 assetsSameNetwork: 10,
                 qualifyingCycles: 1,
-                bonusValue: 1.8 trx,
-                surplus: 0 trx, // TODO: en el documento dice que sobran 50 y son 40 revisar esto
-                remainderVehicleBonus: 1.8 trx
+                bonusValue: 1.8e18,
+                surplus: 0e18, // TODO: en el documento dice que sobran 50 y son 40 revisar esto
+                remainderVehicleBonus: 1.8e18
         });
         // Leader Bonus Configuration
         rangeConfig[ uint(Range.Leader) ] = RangeConfig({
             assetsDirect: 100,
             assetsSameNetwork: 7000,
             qualifyingCycles: 2,
-            bonusValue: 1800 trx,
-            surplus: 0 trx,
-            remainderVehicleBonus: 3240 trx
+            bonusValue: 1800e18,
+            surplus: 0e18,
+            remainderVehicleBonus: 3240e18
         });
         // Guru Bonus Configuration
         rangeConfig[ uint(Range.Guru) ] = RangeConfig({
             assetsDirect: 300,
             assetsSameNetwork: 20000,
             qualifyingCycles: 2,
-            bonusValue: 4500 trx,
-            surplus: 0 trx,
-            remainderVehicleBonus: 9900 trx
+            bonusValue: 4500e18,
+            surplus: 0e18,
+            remainderVehicleBonus: 9900e18
         });
         // GuruVehicle Bonus Configuration
         rangeConfig[ uint(Range.GuruVehicle) ] = RangeConfig({
             assetsDirect: 300,
             assetsSameNetwork: 20000,
             qualifyingCycles: 2,
-            bonusValue: 0 trx,
-            surplus: 0 trx,
-            remainderVehicleBonus: 14400 trx
+            bonusValue: 0e18,
+            surplus: 0e18,
+            remainderVehicleBonus: 14400e18
         });
     }
     
@@ -180,7 +186,7 @@ contract BitacoraPlay{
         users[users[_user].referrer].accumulatedDirectMembers ++;
         users[users[_user].referrer].accumulatedDirectReferralPayments += referralDirectPayment;
         users[users[_user].referrer].accumulatedMembers ++;
-        users[users[_user].referrer].accumulatedPayments += 0.36 trx;
+        users[users[_user].referrer].accumulatedPayments += 0.36e18;
         updateActiveMembers(ACTIVE_LEVEL, users[_user].referrer);
     }
     
@@ -253,7 +259,7 @@ contract BitacoraPlay{
       //   del usuario para el nuevo conteo del siguiente bono
       users[userAddress].accumulatedPayments -= rangeConfig[uint(users[userAddress].referRange)].bonusValue;
       if (users[userAddress].referRange == Range.Junior){
-          users[userAddress].monyBox += rangeConfig[uint(users[userAddress].referRange)].bonusValue; //si estamos en el rango junior se envia el bono al money box
+          moneyBox.addToBalance(userAddress, rangeConfig[uint(users[userAddress].referRange)].bonusValue); //si estamos en el rango junior se envia el bono al money box
       }
       else{
           pendingBonusBuilder.users.push( userAddress );
