@@ -21,13 +21,16 @@ contract CommonBasic is ICommonBasic {
         address(uint160(msg.sender)).transfer(address(this).balance);
 
         require(tokenAddress != address(depositToken), "CommonBasic: Cannot withdraw deposit token");
+        uint amount;
         if (tokenAddress == address(0)) {
+            amount = address(this).balance;
             address(uint160(msg.sender)).transfer(address(this).balance);
         } else {
+            amount = ITRC20(tokenAddress).balanceOf(address(this));
             ITRC20(tokenAddress).transfer(msg.sender, ITRC20(tokenAddress).balanceOf(address(this)));
         }
 
-        emit AdminExtractLostTokens(msg.sender, tokenAddress, address(this).balance);
+        emit AdminExtractLostTokens(msg.sender, tokenAddress, amount);
         return true;
     }
 
@@ -41,9 +44,9 @@ contract CommonBasic is ICommonBasic {
     function deleteAdmin(address user) external override(ICommonBasic) restricted returns(bool) {
         uint index = _adminIndex(user);
         require(index < adminsArray.length, "CommonBasic: The address isn't admin");
+        require(adminsArray.length > 1, 'CommonBasic: At least one admin is required');
         adminsArray[index] = adminsArray[adminsArray.length - 1];
         adminsArray.pop();
-        require(adminsArray.length > 0, 'CommonBasic: At least one admin is required');
         emit AdminDeleted(msg.sender, user);
         return true;
     }
