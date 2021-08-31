@@ -88,7 +88,7 @@ contract BitacoraPlay is BitacoraPlayBasic {
         });
 
         careerRangeConfig [uint(CareerRange.AcademicPromoter)] = 30;
-        careerRangeConfig [uint(CareerRange.AcademicLeader)] = 100;
+        careerRangeConfig [uint(CareerRange.AcademicLeader)] = 70;
         careerRangeConfig [uint(CareerRange.AcademicCommunity)] = 1000;
         careerRangeConfig [uint(CareerRange.Perseverance)] = 5000;
 
@@ -125,6 +125,10 @@ contract BitacoraPlay is BitacoraPlayBasic {
     function updateActivePlanCareer(uint8 _level, address _referrerAddress) private {
         if(_level > 0 && _referrerAddress != rootAddress) {
             users[_referrerAddress].careerPlan.accumulatedPlanCareer ++;
+            if (checkCareerRange(_referrerAddress, users[_referrerAddress].careerRange)){
+                emit CompletedCareerBonusEvent(_referrerAddress, users[_referrerAddress].id, users[_referrerAddress].careerRange);
+                changeCareerRange(_referrerAddress);
+            }
             updateActivePlanCareer(_level - 1, users[_referrerAddress].referrer);
         }
         return;
@@ -136,6 +140,7 @@ contract BitacoraPlay is BitacoraPlayBasic {
         users[users[_user].referrer].referredPlan.accumulatedDirectMembers ++;
         users[users[_user].referrer].referredPlan.accumulatedDirectReferralPayments += referralDirectPayment;
         updateActiveMembers(ACTIVE_LEVEL, users[_user].referrer);
+        globalBalance += referralPlanPrice;
     }
 
     function payMonthly() external payable {
@@ -185,7 +190,7 @@ contract BitacoraPlay is BitacoraPlayBasic {
             users[_referrerAddress].referredPlan.accumulatedMembers ++;
             users[_referrerAddress].referredPlan.accumulatedPayments += 0.36e18;
             if (checkRange(_referrerAddress, users[_referrerAddress].referRange)){
-                emit CompletedBonusEvent(_referrerAddress, users[_referrerAddress].id, users[_referrerAddress].referRange);
+                emit CompletedReferredBonusEvent(_referrerAddress, users[_referrerAddress].id, users[_referrerAddress].referRange);
                 changeRange(_referrerAddress);
             }
             updateActiveMembers(_level - 1, users[_referrerAddress].referrer);
@@ -201,38 +206,32 @@ contract BitacoraPlay is BitacoraPlayBasic {
         return block.timestamp <=  users[user].activationDate;
     }
 
-    //    function checkCareerRange(address userAddress, CareerRange _range) public view returns(bool) {
-    //        return (_range == CareerRange.AcademicPromoter || _range == CareerRange.AcademicLeader ) ?
-    //        careerPlan[ userAddress ].accumulatedPlanCareer  == careerRangeConfig[uint(_range)] ? ;
-    //
-    //    AcademicPromoter,
-    //    AcademicLeader,
-    //    AcademicCommunity,
-    //    Perseverance
-    //    }
+    // Check that a user (_userAddress) is in a specified range (_range) in Referred Plan
+    function checkCareerRange(address _userAddress, CareerRange _range) public view returns(bool) {
+        return _range == CareerRange.AcademicPromoter ? users[ _userAddress ].careerPlan.accumulatedDirectPlanCareer >= careerRangeConfig[uint(_range)] :
+        _range == CareerRange.AcademicLeader ? users[ _userAddress ].careerPlan.accumulatedDirectPlanCareer >= careerRangeConfig[uint(_range)] :
+        _range == CareerRange.AcademicCommunity ? users[ _userAddress ].careerPlan.accumulatedPlanCareer >= careerRangeConfig[uint(_range)] :
+        _range == CareerRange.Perseverance ? users[ _userAddress ].careerPlan.accumulatedPlanCareer >= careerRangeConfig[uint(_range)] :
+        false;
+    }
 
-    function checkRange(address userAddress, ReferredRange _range) public view returns(bool) {
-        return users[ userAddress ].referredPlan.accumulatedMembers == (rangeConfig[ uint(_range)].assetsSameNetwork *
+    // Check that a user (_userAddress) is in a specified range (_range) in Referred Plan
+    function checkRange(address _userAddress, ReferredRange _range) public view returns(bool) {
+        return users[ _userAddress ].referredPlan.accumulatedMembers >= (rangeConfig[ uint(_range)].assetsSameNetwork *
         rangeConfig[ uint(_range) ].qualifyingCycles ) &&
-        users[ userAddress ].referredPlan.accumulatedDirectMembers == rangeConfig[ uint(_range) ].assetsDirect;
+        users[ _userAddress ].referredPlan.accumulatedDirectMembers >= rangeConfig[ uint(_range) ].assetsDirect;
     }
 
     function changeRange(address userAddress) private {
-        //   Almacenar las ganancias del rango que esta dejando atras
-        //   para su futura extraccion, cambia de rango y transforma las variables
-        //   del usuario para el nuevo conteo del siguiente bono
         users[userAddress].referredPlan.accumulatedPayments -= rangeConfig[uint(users[userAddress].referRange)].bonusValue;
         if (users[userAddress].referRange == ReferredRange.Junior){
             users[userAddress].pendingBonus.moneyBox += rangeConfig[uint(users[userAddress].referRange)].bonusValue;
-            emit AvailableBalanceInMoneyBox(userAddress, rangeConfig[uint(users[userAddress].referRange)].bonusValue);
+            emit AvailableBalanceForMoneyBox(userAddress, rangeConfig[uint(users[userAddress].referRange)].bonusValue);
         }
         else{
             users[userAddress].pendingBonus.adminBonus += rangeConfig[uint(users[userAddress].referRange)].bonusValue;
-            // pendingBonusBuilder.users.push( userAddress );
-            // pendingBonusBuilder.usersAmount.push( rangeConfig[ uint(users[ userAddress ].referRange) ].bonusValue);
-            // pendingBonusBuilder.userRange.push( users[userAddress].referRange );
         }
-        users[rootAddress].withDrawl += rangeConfig[uint(users[userAddress].referRange)].surplus; //el excedente lo envio directo a la raiz o a la billetera externa preguntar y cambiar?????
+        users[rootAddress].pendingBonus.himSelf += rangeConfig[uint(users[userAddress].referRange)].surplus;
         emit BonusAvailableToCollectEvent(userAddress, users[userAddress].id, users[userAddress].referRange);
 
         // Updating number of assets of the same network
@@ -246,5 +245,9 @@ contract BitacoraPlay is BitacoraPlayBasic {
         //  Updating ReferredRange
         users[userAddress].referRange =  users[userAddress].referRange == ReferredRange.Junior ? ReferredRange.Leader :
         users[userAddress].referRange == ReferredRange.Leader ? ReferredRange.Guru : ReferredRange.GuruVehicle;
+    }
+
+    function changeCareerRange(address _userAddress) private {
+        users[ _userAddress ].careerPlan.accumulatedPlanCareer -= careerRangeConfig(uint(users[_userAddress].careerRange));
     }
 }

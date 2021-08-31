@@ -4,10 +4,11 @@ import "./IMoneyBox.sol";
 
 abstract contract BitacoraPlayBasic {
     event SignUpEvent(address indexed _newUser, uint indexed _userId, address indexed _sponsor, uint _sponsorId);
-    event CompletedBonusEvent(address indexed _user, uint indexed _userId, ReferredRange indexed _range);
+    event CompletedReferredBonusEvent(address indexed _user, uint indexed _userId, ReferredRange indexed _range);
+    event CompletedCareerBonusEvent(address indexed _user, uint indexed _userId, CareerRange indexed _range);
     event BonusAvailableToCollectEvent(address indexed _user, uint indexed _userId, ReferredRange indexed _range);
     event NewUserChildEvent(address indexed _user, address indexed _sponsor);
-    event AvailableBalanceInMoneyBox(address indexed _user, uint _amounnt);
+    event AvailableBalanceForMoneyBox(address indexed _user, uint _amounnt);
 
     enum ReferredRange {
         Rookie,
@@ -28,15 +29,15 @@ abstract contract BitacoraPlayBasic {
         uint id;
         address wallet;
         address referrer;
+
         ReferredRange referRange;
+        CareerRange careerRange;
 
         ReferredPlan referredPlan;
         PendingBonus pendingBonus;
         CareerPlan careerPlan;
 
         uint256 activationDate;
-
-        uint withDrawl;
     }
 
     struct ReferredPlan {
@@ -67,11 +68,11 @@ abstract contract BitacoraPlayBasic {
         uint adminBonus;
         uint himSelf;
     }
-    PendingBonus pendingBonusBuilder;
 
     uint8 public currentStartingLevel = 1;
     uint8 public constant ACTIVE_LEVEL = 5;
     uint public lastUserId = 2;
+    uint public globalBalance = 0;
 
     // Referral Plan Payments
     uint public referralPlanPrice = 35e18;
