@@ -4,34 +4,18 @@ import "./IMoneyBox.sol";
 
 abstract contract BitacoraPlayBasic {
     event SignUpEvent(address indexed _newUser, uint indexed _userId, address indexed _sponsor, uint _sponsorId);
-    event CompletedReferredBonusEvent(address indexed _user, uint indexed _userId, ReferredRange indexed _range);
-    event CompletedCareerBonusEvent(address indexed _user, uint indexed _userId, CareerRange indexed _range);
-    event BonusAvailableToCollectEvent(address indexed _user, uint indexed _userId, ReferredRange indexed _range);
+    event CompletedBonusEvent(address indexed _user, uint _userId, uint8 indexed _range, uint8 indexed plan);
+    event BonusAvailableToCollectEvent(address indexed _user, uint _userId, uint8 indexed _range, uint8 indexed plan);
     event NewUserChildEvent(address indexed _user, address indexed _sponsor);
     event AvailableBalanceForMoneyBox(address indexed _user, uint _amounnt);
-
-    enum ReferredRange {
-        Rookie,
-        Junior,
-        Leader,
-        Guru,
-        GuruVehicle
-    }
-
-    enum CareerRange {
-        AcademicPromoter,
-        AcademicLeader,
-        AcademicCommunity,
-        Perseverance
-    }
 
     struct User {
         uint id;
         address wallet;
         address referrer;
 
-        ReferredRange referRange;
-        CareerRange careerRange;
+        uint8 referRange;
+        uint8 careerRange;
 
         ReferredPlan referredPlan;
         PendingBonus pendingBonus;
@@ -63,6 +47,12 @@ abstract contract BitacoraPlayBasic {
         uint remainderVehicleBonus;
     }
 
+    struct CareerRangeConfig {
+        uint assetsDirect;
+        uint assetsSameNetwork;
+        uint bonusValue;
+    }
+
     struct PendingBonus {
         uint moneyBox;
         uint adminBonus;
@@ -76,7 +66,9 @@ abstract contract BitacoraPlayBasic {
 
     // Referral Plan Payments
     uint public referralPlanPrice = 35e18;
-    uint public referralDirectPayment = 18e18; //60% of referralPlanPrice
+    uint public referralDirectPayment = 18e18; //60% of referralPlanPrice.
+    // CAreer Plan Payments
+    uint public careerPlanPrice = 50e18;
 
 
     mapping(address => User) users;
@@ -84,16 +76,10 @@ abstract contract BitacoraPlayBasic {
     mapping(uint => address) internal idToAddress;
 
     mapping(uint => RangeConfig) internal rangeConfig;
-    mapping(uint => uint) internal careerRangeConfig;
+    mapping(uint => CareerRangeConfig) internal careerRangeConfig;
 
     address public owner;
     address externalAddress;
     address rootAddress;
     IMoneyBox moneyBox;
-
-    // function getUserInfo() view public returns(uint id, address memory referrer) {
-    //     return {
-    //         id =
-    //     }
-    // }
 }

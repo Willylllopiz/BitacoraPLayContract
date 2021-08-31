@@ -36,13 +36,13 @@ contract BitacoraPlay is BitacoraPlayBasic {
         users[rootAddress].id = 1;
         users[rootAddress].referrer = address(0);
         idToAddress[1] = rootAddress;
-        users[_rootAddress].referRange = ReferredRange.Guru;
+        users[_rootAddress].referRange = 5;
         users[_rootAddress].careerPlan.activeCareerPlan = true;
     }
 
-    function initializeValues() internal {
+    function initializeValues() private {
         // Rookie Bonus Configuration
-        rangeConfig[ uint(ReferredRange.Rookie) ] = RangeConfig({
+        rangeConfig[ 0 ] = RangeConfig({
         assetsDirect: 0,
         assetsSameNetwork: 0,
         qualifyingCycles: 0,
@@ -51,7 +51,7 @@ contract BitacoraPlay is BitacoraPlayBasic {
         remainderVehicleBonus: 0e18
         });
         // // Junior Bonus Configuration
-        rangeConfig [ uint(ReferredRange.Junior) ] = RangeConfig({
+        rangeConfig [ 1 ] = RangeConfig({
         assetsDirect: 30,
         assetsSameNetwork: 3000,
         qualifyingCycles: 1,
@@ -60,7 +60,7 @@ contract BitacoraPlay is BitacoraPlayBasic {
         remainderVehicleBonus: 540e18
         });
         // Leader Bonus Configuration
-        rangeConfig[ uint(ReferredRange.Leader) ] = RangeConfig({
+        rangeConfig[ 2 ] = RangeConfig({
         assetsDirect: 100,
         assetsSameNetwork: 7000,
         qualifyingCycles: 2,
@@ -69,7 +69,7 @@ contract BitacoraPlay is BitacoraPlayBasic {
         remainderVehicleBonus: 3240e18
         });
         // Guru Bonus Configuration
-        rangeConfig[ uint(ReferredRange.Guru) ] = RangeConfig({
+        rangeConfig[ 3 ] = RangeConfig({
         assetsDirect: 300,
         assetsSameNetwork: 20000,
         qualifyingCycles: 2,
@@ -78,7 +78,7 @@ contract BitacoraPlay is BitacoraPlayBasic {
         remainderVehicleBonus: 9900e18
         });
         // GuruVehicle Bonus Configuration
-        rangeConfig[ uint(ReferredRange.GuruVehicle) ] = RangeConfig({
+        rangeConfig[ 4 ] = RangeConfig({
         assetsDirect: 300,
         assetsSameNetwork: 20000,
         qualifyingCycles: 2,
@@ -87,10 +87,13 @@ contract BitacoraPlay is BitacoraPlayBasic {
         remainderVehicleBonus: 14400e18
         });
 
-        careerRangeConfig [uint(CareerRange.AcademicPromoter)] = 30;
-        careerRangeConfig [uint(CareerRange.AcademicLeader)] = 70;
-        careerRangeConfig [uint(CareerRange.AcademicCommunity)] = 1000;
-        careerRangeConfig [uint(CareerRange.Perseverance)] = 5000;
+        careerRangeConfig [0] = CareerRangeConfig({assetsDirect: 30, assetsSameNetwork: 0, bonusValue: 750e18});
+        careerRangeConfig [1] = CareerRangeConfig({assetsDirect: 70, assetsSameNetwork: 0, bonusValue: 1750e18});
+        careerRangeConfig [2] = CareerRangeConfig({assetsDirect: 0, assetsSameNetwork: 1000, bonusValue: 1800e18});
+        careerRangeConfig [3] = CareerRangeConfig({assetsDirect: 0, assetsSameNetwork: 5000, bonusValue: 7200e18});
+        careerRangeConfig [4] = CareerRangeConfig({assetsDirect: 0, assetsSameNetwork: 0, bonusValue: 0});
+        //Si esta en el extra bono cualquier cantidad de directos o indirectos es igual para la comprobacion
+
 
 
     }
@@ -116,17 +119,17 @@ contract BitacoraPlay is BitacoraPlayBasic {
         payCareerPlanActivation(msg.sender);
     }
 
-    function payCareerPlanActivation(address _user) internal {
+    function payCareerPlanActivation(address _user) private {
         users[_user].careerPlan.activeCareerPlan = true;
         users[users[_user].referrer].careerPlan.accumulatedDirectPlanCareer ++;
-
+        globalBalance += careerPlanPrice;
     }
 
     function updateActivePlanCareer(uint8 _level, address _referrerAddress) private {
         if(_level > 0 && _referrerAddress != rootAddress) {
             users[_referrerAddress].careerPlan.accumulatedPlanCareer ++;
             if (checkCareerRange(_referrerAddress, users[_referrerAddress].careerRange)){
-                emit CompletedCareerBonusEvent(_referrerAddress, users[_referrerAddress].id, users[_referrerAddress].careerRange);
+                emit CompletedBonusEvent(_referrerAddress, users[_referrerAddress].id, users[_referrerAddress].careerRange, 1);
                 changeCareerRange(_referrerAddress);
             }
             updateActivePlanCareer(_level - 1, users[_referrerAddress].referrer);
@@ -134,7 +137,7 @@ contract BitacoraPlay is BitacoraPlayBasic {
         return;
     }
 
-    function payMonth(address _user) internal {
+    function payMonth(address _user) private {
         require(isUserExists(_user), "user is not exists. Register first.");
         users[_user].activationDate =  block.timestamp + 30 days;
         users[users[_user].referrer].referredPlan.accumulatedDirectMembers ++;
@@ -162,7 +165,7 @@ contract BitacoraPlay is BitacoraPlayBasic {
         idToAddress[lastUserId] = userAddress;
         users[userAddress].id = lastUserId;
         users[userAddress].referrer = referrerAddress;
-        users[userAddress].referRange = ReferredRange.Rookie;
+        users[userAddress].referRange = 0;//revisar si empieza en rookie o junior
 
         users[userAddress].careerPlan.activeCareerPlan = false;
 
@@ -190,7 +193,7 @@ contract BitacoraPlay is BitacoraPlayBasic {
             users[_referrerAddress].referredPlan.accumulatedMembers ++;
             users[_referrerAddress].referredPlan.accumulatedPayments += 0.36e18;
             if (checkRange(_referrerAddress, users[_referrerAddress].referRange)){
-                emit CompletedReferredBonusEvent(_referrerAddress, users[_referrerAddress].id, users[_referrerAddress].referRange);
+                emit CompletedBonusEvent(_referrerAddress, users[_referrerAddress].id, users[_referrerAddress].referRange, 0);
                 changeRange(_referrerAddress);
             }
             updateActiveMembers(_level - 1, users[_referrerAddress].referrer);
@@ -207,47 +210,60 @@ contract BitacoraPlay is BitacoraPlayBasic {
     }
 
     // Check that a user (_userAddress) is in a specified range (_range) in Referred Plan
-    function checkCareerRange(address _userAddress, CareerRange _range) public view returns(bool) {
-        return _range == CareerRange.AcademicPromoter ? users[ _userAddress ].careerPlan.accumulatedDirectPlanCareer >= careerRangeConfig[uint(_range)] :
-        _range == CareerRange.AcademicLeader ? users[ _userAddress ].careerPlan.accumulatedDirectPlanCareer >= careerRangeConfig[uint(_range)] :
-        _range == CareerRange.AcademicCommunity ? users[ _userAddress ].careerPlan.accumulatedPlanCareer >= careerRangeConfig[uint(_range)] :
-        _range == CareerRange.Perseverance ? users[ _userAddress ].careerPlan.accumulatedPlanCareer >= careerRangeConfig[uint(_range)] :
-        false;
+    function checkCareerRange(address _userAddress, uint8 _range) public view returns(bool) {
+        return _range <= 1 ? users[ _userAddress ].careerPlan.accumulatedDirectPlanCareer >= careerRangeConfig[_range].assetsDirect :
+        users[ _userAddress ].careerPlan.accumulatedPlanCareer >= careerRangeConfig[_range].assetsSameNetwork;
     }
 
     // Check that a user (_userAddress) is in a specified range (_range) in Referred Plan
-    function checkRange(address _userAddress, ReferredRange _range) public view returns(bool) {
-        return users[ _userAddress ].referredPlan.accumulatedMembers >= (rangeConfig[ uint(_range)].assetsSameNetwork *
-        rangeConfig[ uint(_range) ].qualifyingCycles ) &&
-        users[ _userAddress ].referredPlan.accumulatedDirectMembers >= rangeConfig[ uint(_range) ].assetsDirect;
+    function checkRange(address _userAddress, uint8 _range) public view returns(bool) {
+        return users[ _userAddress ].referredPlan.accumulatedMembers >= (rangeConfig[_range].assetsSameNetwork *
+        rangeConfig[_range].qualifyingCycles ) &&
+        users[ _userAddress ].referredPlan.accumulatedDirectMembers >= rangeConfig[_range].assetsDirect;
     }
 
     function changeRange(address userAddress) private {
-        users[userAddress].referredPlan.accumulatedPayments -= rangeConfig[uint(users[userAddress].referRange)].bonusValue;
-        if (users[userAddress].referRange == ReferredRange.Junior){
-            users[userAddress].pendingBonus.moneyBox += rangeConfig[uint(users[userAddress].referRange)].bonusValue;
-            emit AvailableBalanceForMoneyBox(userAddress, rangeConfig[uint(users[userAddress].referRange)].bonusValue);
+        users[userAddress].referredPlan.accumulatedPayments -= rangeConfig[users[userAddress].referRange].bonusValue;
+        if (users[userAddress].referRange == 1){
+            users[userAddress].pendingBonus.moneyBox += rangeConfig[users[userAddress].referRange].bonusValue;
+            emit AvailableBalanceForMoneyBox(userAddress, rangeConfig[users[userAddress].referRange].bonusValue);
         }
         else{
-            users[userAddress].pendingBonus.adminBonus += rangeConfig[uint(users[userAddress].referRange)].bonusValue;
+            users[userAddress].pendingBonus.adminBonus += rangeConfig[users[userAddress].referRange].bonusValue;
         }
-        users[rootAddress].pendingBonus.himSelf += rangeConfig[uint(users[userAddress].referRange)].surplus;
-        emit BonusAvailableToCollectEvent(userAddress, users[userAddress].id, users[userAddress].referRange);
+        users[rootAddress].pendingBonus.himSelf += rangeConfig[users[userAddress].referRange].surplus;
+        emit BonusAvailableToCollectEvent(userAddress, users[userAddress].id, users[userAddress].referRange, 0);
 
         // Updating number of assets of the same network
-        users[userAddress].referredPlan.accumulatedMembers = users[userAddress].referredPlan.accumulatedMembers - rangeConfig[uint(users[userAddress].referRange)].assetsSameNetwork >=0
-        ? users[userAddress].referredPlan.accumulatedMembers - rangeConfig[uint(users[userAddress].referRange)].assetsSameNetwork
+        users[userAddress].referredPlan.accumulatedMembers = users[userAddress].referredPlan.accumulatedMembers - rangeConfig[users[userAddress].referRange].assetsSameNetwork >=0
+        ? users[userAddress].referredPlan.accumulatedMembers - rangeConfig[users[userAddress].referRange].assetsSameNetwork
         : 0;
         // Updating number of direct assets
-        users[userAddress].referredPlan.accumulatedDirectMembers = users[userAddress].referredPlan.accumulatedDirectMembers - rangeConfig[uint(users[userAddress].referRange)].assetsDirect >=0
-        ? users[userAddress].referredPlan.accumulatedDirectMembers - rangeConfig[uint(users[userAddress].referRange)].assetsDirect
+        users[userAddress].referredPlan.accumulatedDirectMembers = users[userAddress].referredPlan.accumulatedDirectMembers - rangeConfig[users[userAddress].referRange].assetsDirect >=0
+        ? users[userAddress].referredPlan.accumulatedDirectMembers - rangeConfig[users[userAddress].referRange].assetsDirect
         : 0;
         //  Updating ReferredRange
-        users[userAddress].referRange =  users[userAddress].referRange == ReferredRange.Junior ? ReferredRange.Leader :
-        users[userAddress].referRange == ReferredRange.Leader ? ReferredRange.Guru : ReferredRange.GuruVehicle;
+        users[userAddress].referRange ++;
     }
 
     function changeCareerRange(address _userAddress) private {
-        users[ _userAddress ].careerPlan.accumulatedPlanCareer -= careerRangeConfig(uint(users[_userAddress].careerRange));
+        if (users[ _userAddress ].careerRange <= 1 ){
+            users[ _userAddress ].careerPlan.accumulatedDirectPlanCareer -= careerRangeConfig[users[_userAddress].careerRange].assetsDirect;
+            users[_userAddress].pendingBonus.adminBonus += careerRangeConfig[users[_userAddress].careerRange].bonusValue;
+            emit BonusAvailableToCollectEvent(_userAddress, users[_userAddress].id, users[_userAddress].careerRange, 1);
+        }
+        if (users[ _userAddress ].careerRange == 2 || users[ _userAddress ].careerRange == 3){
+            users[ _userAddress ].careerPlan.accumulatedPlanCareer -= careerRangeConfig[users[_userAddress].careerRange].assetsSameNetwork;
+            users[_userAddress].pendingBonus.moneyBox += careerRangeConfig[users[_userAddress].careerRange].bonusValue;
+            emit AvailableBalanceForMoneyBox(_userAddress, rangeConfig[users[_userAddress].careerRange].bonusValue);
+        }
+        if (users[ _userAddress ].careerRange > 3 ){
+            // users[ _userAddress ].careerPlan.accumulatedPlanCareer -= careerRangeConfig[users[_userAddress].careerRange].assetsSameNetwork;
+            users[rootAddress].pendingBonus.himSelf += users[_userAddress];
+        }
+        emit CompletedBonusEvent(_userAddress, users[_userAddress].id,users[_userAddress].careerRange, 1);
+        //  Updating CareerRange
+        users[ _userAddress ].careerRange ++;
+
     }
 }
