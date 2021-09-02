@@ -19,6 +19,20 @@ contract MoneyBoxSettings is SettingsBasic, IMoneyBoxSettings {
     mapping(uint8 => CategoryConfig) public _categoryConfig;
     uint8 _categoriesCount;
 
+    struct LogicSettings {
+        uint registerPrice;
+        uint amountForBonus;
+        mapping(uint8 => BonusDistribution) bonusDistribution;
+        uint8 bonusesCount;
+    }
+
+    struct BonusDistribution {
+        uint64 accumulateNecessary;
+        uint amount;
+    }
+
+    LogicSettings public _logicSettings;
+
     constructor(ITRC20 _depositTokenAddress) public {
         _initialize(msg.sender, _depositTokenAddress);
     }
@@ -50,7 +64,22 @@ contract MoneyBoxSettings is SettingsBasic, IMoneyBoxSettings {
             maxDeposit: 10000e18,
             active: true
         });
-
+        
+        _logicSettings.registerPrice = 50e18;
+        _logicSettings.amountForBonus = 40e18;
+        _logicSettings.bonusDistribution[1] = BonusDistribution({
+            accumulateNecessary: 30,
+            amount: 1000e18
+        });
+        _logicSettings.bonusDistribution[2] = BonusDistribution({
+            accumulateNecessary: 100,
+            amount: 1750e18
+        });
+        _logicSettings.bonusDistribution[3] = BonusDistribution({
+            accumulateNecessary: 300,
+            amount: 5000e18
+        });
+        _logicSettings.bonusesCount = 3;
     }
 
     function addCategory(bytes4 name, uint16 percentage, uint16 countDays, uint minDeposit, uint maxDeposit) override(IMoneyBoxSettings) external restricted {
@@ -92,6 +121,37 @@ contract MoneyBoxSettings is SettingsBasic, IMoneyBoxSettings {
             _categoryConfig[categoryId].countDays,
             _categoryConfig[categoryId].minDeposit,
             _categoryConfig[categoryId].maxDeposit
+        );
+    }
+
+    function addBonusDistribution(uint64 accumulateNecessary, uint amount) external {
+        require(_logicSettings.bonusDistribution[_logicSettings.bonusesCount].accumulateNecessary < accumulateNecessary);
+        require(accumulateNecessary > 0 && amount > 0);
+        _logicSettings.bonusDistribution[++_logicSettings.bonusesCount] = BonusDistribution({
+            accumulateNecessary: accumulateNecessary, amount: amount
+        });
+    }
+
+    function changeBonusDistribution(uint8 bonusDistributionId, uint64 accumulateNecessary, uint amount) external {
+        require(bonusDistributionId > 0 && bonusDistributionId <= _logicSettings.bonusesCount);
+        require(accumulateNecessary > 0 && amount > 0);
+        _logicSettings.bonusDistribution[bonusDistributionId] = BonusDistribution({
+            accumulateNecessary: accumulateNecessary, amount: amount
+        });
+    }
+
+    function getLogicSettings() override(IMoneyBoxSettings) external view returns(uint, uint, uint8) {
+        return (
+            _logicSettings.registerPrice,
+            _logicSettings.amountForBonus,
+            _logicSettings.bonusesCount
+        );
+    }
+
+    function getBonusDistribution(uint8 id) override(IMoneyBoxSettings) external view returns(uint64, uint) {
+        return (
+            _logicSettings.bonusDistribution[id].accumulateNecessary,
+            _logicSettings.bonusDistribution[id].amount
         );
     }
 }

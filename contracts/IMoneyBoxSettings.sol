@@ -13,4 +13,6 @@ interface IMoneyBoxSettings is ISettingsBasic {
     function deleteCategory(uint8 categoryId) external;
     function updateCategory(uint8 categoryId, bytes4 name, uint16 percentage, uint16 countDays, uint minDeposit, uint maxDeposit) external;
     function getCategoryInfo(uint8 categoryId) external view returns(bytes4, uint16, uint16, uint, uint);
+    function getLogicSettings() external view returns(uint, uint, uint8);
+    function getBonusDistribution(uint8 id) external view returns(uint64, uint);
 }
