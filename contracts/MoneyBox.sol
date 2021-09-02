@@ -6,7 +6,7 @@ import "./SafeTRC20.sol";
 
 interface IBitacoraBasic {
     function isUserExists(address user) external view returns (bool);
-    function getUserInfo(address user) external view returns (uint userId, address sponsor, bool active);
+    function getUserInfo(address user) external view returns (uint, address, bool);
 }
 
 contract MoneyBox is CommonBasic {
@@ -144,6 +144,7 @@ contract MoneyBox is CommonBasic {
                 emit UserEarnBonus(sponsor, user, bonus.lastBonus, amountNecessary);
             }
         }
+        return true;
     }
 
     function _deposit(address user, uint8 categoryId, uint amount, bool fromBalance) internal {
