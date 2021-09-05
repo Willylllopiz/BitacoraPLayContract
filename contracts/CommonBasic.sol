@@ -4,9 +4,11 @@ pragma solidity ^0.6.2;
 
 import "./ICommonBasic.sol";
 import "./ITRC20.sol";
+import "./SafeTRC20.sol";
 
 abstract contract CommonBasic is ICommonBasic {
     ITRC20 depositToken;
+    using SafeTRC20 for ITRC20;
 
     modifier restrictedWithdrawLostTokens() virtual {_;}
 
