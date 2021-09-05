@@ -1,5 +1,5 @@
 pragma solidity ^0.6.2;
 
 interface IMoneyBox {
-    function addToBalance(address _user, uint amount) external returns(bool);
+    function depositFounds(uint8 _categoryId, address _user,uint _amount) external returns(bool);
 }
