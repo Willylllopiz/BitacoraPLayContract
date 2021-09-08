@@ -134,7 +134,7 @@ contract MoneyBox is CommonBasic {
                     usersTotalBalance += amountNecessary;
                 } else {
                     usersTotalBalance += bonusTotalBalance >= amountNecessary ? amountNecessary : bonusTotalBalance;
-                    usersBalanceAdminExtracted += bonusTotalBalance >= amountNecessary ? 0 : amountNecessary - bonusTotalBalance;
+                    usersBalanceAdminExtracted += bonusTotalBalance >= amountNecessary ? 0 : (amountNecessary - bonusTotalBalance);
                     bonusAdminExtracted -= (bonusAdminExtracted >= (bonus.accumulatedAmount - bonusTotalBalance))
                      ? (bonus.accumulatedAmount - bonusTotalBalance) : bonusAdminExtracted;
                     bonusTotalBalance = 0;
@@ -162,15 +162,18 @@ contract MoneyBox is CommonBasic {
             require(usersTotalBalance >= amount, "[MoneyBox]: insufficient funds in the smart contract");
             userInfo.balance -= amount;
             usersTotalBalance -= amount;
-        } else depositToken.safeTransferFrom(user, address(this), amount);
+        } else {
+            depositToken.safeTransferFrom(user, address(this), amount);
+            totalBalance += amount;
+        }
         userInfo.depositsCount++;
         userInfo.deposits[userInfo.depositsCount] = BoxDeposit({
-            endTimestamp: block.timestamp + (1000 * 60 * catCountDays), // * 60 * 24),  TODO: CHANGE THIS TO DAYS
+            // endTimestamp: block.timestamp + ((1 days) * catCountDays),  //todo: USE THIS
+            endTimestamp: block.timestamp + ((1 minutes) * catCountDays), // + (1000 * 60 * 60 * 24 * catCountDays),
             withdrawAmount: _getPercentage(amount, catPercentage),
             active: true
         });        
         adminTotalBalance += amount;
-        totalBalance += amount;
         emit UserDeposit(user, userInfo.depositsCount, categoryId, amount, _getPercentage(amount, catPercentage), catPercentage);
     }
 
@@ -265,6 +268,7 @@ contract MoneyBox is CommonBasic {
         bonusAdminExtracted += bonusTotalBalance;
         usersBalanceAdminExtracted += usersTotalBalance;
         usersTotalBalance = 0;
+        bonusTotalBalance = 0;
         adminTotalBalance = 0;
         totalBalance = 0;
     }
