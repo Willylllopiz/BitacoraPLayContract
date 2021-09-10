@@ -2,12 +2,53 @@ pragma solidity ^0.6.2;
 // SPDX-License-Identifier: MIT
 
 import "./IMoneyBox.sol";
-import "./BitacoraPlayBasic.sol";//ya
-import "./CommonBasic.sol";
+import "./BitacoraPlayBasic.sol";
+import "./BitacoraPlaySettings.sol";
 
-contract BitacoraPlay is BitacoraPlayBasic, CommonBasic {
+contract BitacoraPlay is BitacoraPlayBasic {
+    event SignUpEvent(address indexed _newUser, uint indexed _userId, address indexed _sponsor, uint _sponsorId);
+    event CompletedBonusEvent(address indexed _user, uint _userId, uint8 indexed _range, uint8 indexed plan);
+    event BonusAvailableToCollectEvent(address indexed _user, uint _userId, uint8 indexed _range, uint8 indexed plan);
+    event NewUserChildEvent(address indexed _user, address indexed _sponsor);
+    event AvailableBalanceForMoneyBox(address indexed _user, uint _amounnt);
+    event AvailableAdministrativeBalance(uint _amounnt); 
 
-    constructor(ITRC20 _depositTokenAddress, address _externalAddress, address _rootAddress, IMoneyBox _moneyBox, IBitacoraPlaySettings _bitacoraPlaySettings) public {
+    struct User {
+        uint id;
+        address wallet;
+        address referrer;
+
+        uint8 referRange;
+        uint8 careerRange;
+        // uint8 cycle;
+        // uint8 prosumerRange;
+        // uint8 prosumerLevel;
+
+        ReferredPlan referredPlan;
+        PendingBonus pendingBonus;
+        // CareerPlan careerPlan;
+        // ProsumerPlan prosumerPlan;
+
+        uint256 activationDate;
+    }
+
+    struct ReferredPlan {
+        uint accumulatedMembers; //Cantidad acumulada de pagos de hasta el quinto nivel
+        uint accumulatedDirectMembers; //cantidad acumulada de referidos directos para uso de los bonos
+        uint accumulatedPayments; //cantidad acumulada de pagos para la distribucion del bono actual del usuario      
+        uint accumulatedDirectToSeeCourse;//Cantidad acumulada de referidos para ver Cursos
+    }
+
+     struct PendingBonus {
+        uint moneyBox;
+        uint adminBonus;
+        uint himSelf;
+    }
+
+    mapping(address => User) users;
+    mapping(uint => address) internal idToAddress;
+
+    constructor(ITRC20 _depositTokenAddress, address _externalAddress, address _rootAddress, IMoneyBox _moneyBox, BitacoraPlaySettings _bitacoraPlaySettings) public {
         owner = msg.sender;
         depositToken = _depositTokenAddress;
 
@@ -20,7 +61,7 @@ contract BitacoraPlay is BitacoraPlayBasic, CommonBasic {
         users[rootAddress].referrer = address(0);
         idToAddress[1] = rootAddress;
         users[_rootAddress].referRange = 5;
-        users[_rootAddress].careerPlan.activeCareerPlan = true;
+        // users[_rootAddress].careerPlan.activeCareerPlan = true;
     }
 
     fallback() external {
@@ -35,14 +76,16 @@ contract BitacoraPlay is BitacoraPlayBasic, CommonBasic {
         assembly {
             addr := mload(add(bys, 20))
         }
+    }    
+
+    function getReferrer(address _userAddress) public view returns(address){
+        require(isUserExists(_userAddress) && _userAddress != rootAddress, 'user not valid');
+        return users[_userAddress].referrer;
     }
 
-    modifier restricted() {
-        require(bitacoraPlaySettings.isAdmin(msg.sender), "BitacoraPlay: Only admins");
-        _;
+    function isUserExists(address user) public view returns (bool) {
+        return (users[user].id != 0);
     }
-
-    // Start Region Referred Plan
 
     function registration(address userAddress, address referrerAddress) private {
         require(!isUserExists(userAddress), "user exists");
@@ -59,7 +102,7 @@ contract BitacoraPlay is BitacoraPlayBasic, CommonBasic {
         users[userAddress].referrer = referrerAddress;
         users[userAddress].referRange = 0;//revisar si empieza en rookie o junior
 
-        users[userAddress].careerPlan.activeCareerPlan = false;
+        // users[userAddress].careerPlan.activeCareerPlan = false;
 
         lastUserId++;
 
@@ -85,7 +128,7 @@ contract BitacoraPlay is BitacoraPlayBasic, CommonBasic {
         depositToken.safeTransferFrom(_user, address(this), referralPlanPrice);
         users[_user].activationDate =  block.timestamp + 30 days;
         users[users[_user].referrer].referredPlan.accumulatedDirectMembers ++;
-        users[users[_user].referrer].referredPlan.accumulatedDirectReferralPayments += referralDirectPayment;
+        users[users[_user].referrer].referredPlan.accumulatedDirectToSeeCourse ++; //save accumulated to pay courses aqui debo llamar al metodo del contrato prosumer para que umente los referidos de un estudiante 
         updateActiveMembers(ACTIVE_LEVEL, users[_user].referrer);
         administrativeBalance +=5e18;
         emit AvailableAdministrativeBalance(5e18);
@@ -109,10 +152,6 @@ contract BitacoraPlay is BitacoraPlayBasic, CommonBasic {
             updateActiveMembers(_level - 1, users[_referrerAddress].referrer);
         }
         return;
-    }
-
-    function isUserExists(address user) public view returns (bool) {
-        return (users[user].id != 0);
     }
 
     function isActivatedMembership(address user) public view returns(bool) {
@@ -151,113 +190,6 @@ contract BitacoraPlay is BitacoraPlayBasic, CommonBasic {
         //  Updating ReferredRange
         users[userAddress].referRange ++;
     }
-
-    // End Region Referred Plan
-
-    // Start Region Career Plan
-
-    function activateCareerPlan() external{      
-        require( isActivatedMembership(msg.sender), "user already active this month.");
-        payCareerPlanActivation(msg.sender);
-    }
-
-    function payCareerPlanActivation(address _user) private {
-        require(isUserExists(_user), "user is not exists. Register first.");
-        depositToken.safeTransferFrom(_user, address(this), careerPlanPrice);
-        users[_user].careerPlan.activeCareerPlan = true;
-        users[users[_user].referrer].careerPlan.accumulatedDirectPlanCareer ++;
-        updateActivePlanCareer(ACTIVE_LEVEL,users[_user].referrer);
-        administrativeBalance +=10e18;
-        emit AvailableAdministrativeBalance(10e18);
-        globalBalance += careerPlanPrice;
-    }
-
-    function updateActivePlanCareer(uint8 _level, address _referrerAddress) private {
-        if(_level > 0 && _referrerAddress != rootAddress) {
-            users[_referrerAddress].careerPlan.accumulatedPlanCareer ++;
-            if (checkCareerRange(_referrerAddress, users[_referrerAddress].careerRange)){
-                 if ( 3 > users[_referrerAddress].careerRange){
-                     changeCareerRange(_referrerAddress);
-                 }
-                else{
-                     users[rootAddress].pendingBonus.himSelf += 3e18;
-                 }
-
-                emit CompletedBonusEvent(_referrerAddress, users[_referrerAddress].id, users[_referrerAddress].careerRange, 1);                
-            }
-            updateActivePlanCareer(_level - 1, users[_referrerAddress].referrer);
-        }
-        return;
-    }
-
-     // Check that a user (_userAddress) is in a specified range (_range) in Referred Plan
-    function checkCareerRange(address _userAddress, uint8 _range) public view returns(bool) {
-        (uint _assetsDirect, uint _assetsSameNetwork, , ) = bitacoraPlaySettings.getCareerConfigInfo(_range);
-        return _range <= 1 ? users[ _userAddress ].careerPlan.accumulatedDirectPlanCareer >= _assetsDirect :
-        users[ _userAddress ].careerPlan.accumulatedPlanCareer >= _assetsSameNetwork;
-    }
-
-    function changeCareerRange(address _userAddress) private {
-        (uint _assetsDirect, uint _assetsSameNetwork, uint _bonusValue,) = bitacoraPlaySettings.getCareerConfigInfo(users[_userAddress].careerRange);
-        if (users[ _userAddress ].careerRange <= 1 ){
-            users[ _userAddress ].careerPlan.accumulatedDirectPlanCareer -= _assetsDirect;
-            users[_userAddress].pendingBonus.adminBonus += _bonusValue;
-            emit BonusAvailableToCollectEvent(_userAddress, users[_userAddress].id, users[_userAddress].careerRange, 1);
-        }
-        if (users[ _userAddress ].careerRange == 2 || users[ _userAddress ].careerRange == 3){
-            users[ _userAddress ].careerPlan.accumulatedPlanCareer -= _assetsSameNetwork;
-            users[_userAddress].pendingBonus.moneyBox += _bonusValue;
-            emit AvailableBalanceForMoneyBox(_userAddress, _bonusValue);
-        }
-        emit CompletedBonusEvent(_userAddress, users[_userAddress].id,users[_userAddress].careerRange, 1);
-        //  Updating CareerRange
-        users[ _userAddress ].careerRange ++;
-    }
-
-    // End Region Career Plan
-
-    //Start Region Prosumer Plan
-    
-
-    //End Region Prosumer Plan
-
-    function withdrawAdminFounds(uint _amount) external restricted {
-        require(0 < _amount, "BitacoraPlay: Invalid amount");
-        require(_amount <= administrativeBalance, "BitacoraPlay: insufficient funds");
-        depositToken.safeTransfer(msg.sender, _amount);
-        administrativeBalance -= _amount;
-        globalBalance -= _amount;
-        emit AdminWithdrewFunds(msg.sender, _amount);
-    }
-
-    function withdrawUserBonusByAdmin(uint _amount, address _user) external restricted {
-        require(0 < _amount, "BitacoraPlay: Invalid amount");
-        require(isUserExists(_user), "user is not exists");
-        require(_amount <= users[_user].pendingBonus.adminBonus, "BitacoraPlay: insufficient funds");
-        depositToken.safeTransfer(msg.sender, _amount);
-        administrativeBalance -= _amount;
-        globalBalance -= _amount;
-        emit AdminWithdrewUserBonus(msg.sender, _user, _amount);
-    }
-
-    function witdrawUserFounds(uint _amount) external {
-        require(isUserExists(msg.sender), "user is not exists");
-        require(0 < _amount, "BitacoraPlay: Invalid amount");
-        require(_amount <= users[msg.sender].pendingBonus.himSelf, "BitacoraPlay: insufficient funds");
-        depositToken.safeTransfer(msg.sender, _amount);
-        users[msg.sender].pendingBonus.himSelf -= _amount;
-        globalBalance -= _amount;
-        emit UserWithdrewFunds(msg.sender, _amount);
-    }
-
-    function userInvestmentInMoneyBox(uint _amount, uint8 _categoryId) external {
-        require(isUserExists(msg.sender), "user is not exists");
-        require(50e18 < _amount, "BitacoraPlay: Invalid amount");
-        require(_amount <= users[msg.sender].pendingBonus.moneyBox, "BitacoraPlay: insufficient funds");
-        depositToken.safeIncreaseAllowance(address(moneyBox), _amount);
-        moneyBox.depositFounds(_categoryId, msg.sender, _amount);        
-        users[msg.sender].pendingBonus.moneyBox -= _amount;
-        globalBalance -= _amount;
-        emit UserInvestmentInMoneyBox(msg.sender, _categoryId, _amount);
-    }
 }
+
+//TODO: comprobar donde quiera que sea necesario que no es la raiz antes de cualquier operacion de indexacion!!!!
