@@ -1,9 +1,8 @@
 pragma solidity ^0.6.2;
 
 import "./SettingsBasic.sol";
-import "./IMoneyBoxSettings.sol";
 
-contract MoneyBoxSettings is SettingsBasic, IMoneyBoxSettings {
+contract MoneyBoxSettings is SettingsBasic {
     event CategoryConfigAdded(address indexed admin, uint8 categoryId, bytes4 name, uint16 percentage, uint16 countDays, uint minDeposit, uint maxDeposit);
     event CategoryConfigDeleted(address indexed admin, uint8 categoryId);
     event CategoryConfigUpdated(address indexed admin, uint8 categoryId, bytes4 name, uint16 percentage, uint16 countDays, uint minDeposit, uint maxDeposit);
@@ -33,12 +32,13 @@ contract MoneyBoxSettings is SettingsBasic, IMoneyBoxSettings {
 
     LogicSettings public _logicSettings;
 
-    constructor(ITRC20 _depositTokenAddress) public {
-        _initialize(msg.sender, _depositTokenAddress);
+    constructor() public {
+        _owner = msg.sender;
+        _locked = true;
     }
 
-    function _initialize(address _owner, ITRC20 _depositTokenAddress) private {
-        _initializeSettingsBasic(_owner, _depositTokenAddress);
+    function initialize(ITRC20 _depositTokenAddress) external onlyOwner {
+        _initializeSettingsBasic(_depositTokenAddress);
         _categoriesCount = 3;
         _categoryConfig[1] = CategoryConfig({
             name: "M3",
@@ -80,9 +80,10 @@ contract MoneyBoxSettings is SettingsBasic, IMoneyBoxSettings {
             amount: 5000e18
         });
         _logicSettings.bonusesCount = 3;
+        _locked = false;
     }
 
-    function addCategory(bytes4 name, uint16 percentage, uint16 countDays, uint minDeposit, uint maxDeposit) override(IMoneyBoxSettings) external restricted {
+    function addCategory(bytes4 name, uint16 percentage, uint16 countDays, uint minDeposit, uint maxDeposit) external restricted {
         // require(getCategoryOrder(key) == 0, "MoneyBoxSettings: Category already exists");
         _categoriesCount++;
         _categoryConfig[_categoriesCount] = CategoryConfig({
@@ -96,14 +97,14 @@ contract MoneyBoxSettings is SettingsBasic, IMoneyBoxSettings {
         emit CategoryConfigAdded(msg.sender, _categoriesCount, name, percentage, countDays, minDeposit, maxDeposit);
     }
 
-    function deleteCategory(uint8 categoryId) override(IMoneyBoxSettings) external restricted {
+    function deleteCategory(uint8 categoryId) external restricted {
         require(0 < categoryId && categoryId <= _categoriesCount, "MoneyBoxSettings: Category does not exist");
         require(_categoryConfig[categoryId].active, "MoneyBoxSettings: Category does not exist");
         _categoryConfig[categoryId].active = false;
         emit CategoryConfigDeleted(msg.sender, categoryId);
     }
 
-    function updateCategory(uint8 categoryId, bytes4 name, uint16 percentage, uint16 countDays, uint minDeposit, uint maxDeposit) override(IMoneyBoxSettings) external restricted {
+    function updateCategory(uint8 categoryId, bytes4 name, uint16 percentage, uint16 countDays, uint minDeposit, uint maxDeposit) external restricted {
         require(0 < categoryId && categoryId <= _categoriesCount, "MoneyBoxSettings: Category does not exist");
         _categoryConfig[categoryId].name = name;
         _categoryConfig[categoryId].percentage = percentage;
@@ -113,7 +114,7 @@ contract MoneyBoxSettings is SettingsBasic, IMoneyBoxSettings {
         emit CategoryConfigUpdated(msg.sender, categoryId, name, percentage, countDays, minDeposit, maxDeposit);
     }
 
-    function getCategoryInfo(uint8 categoryId) override(IMoneyBoxSettings) public view returns(bytes4, uint16, uint16, uint, uint) {
+    function getCategoryInfo(uint8 categoryId) public view returns(bytes4, uint16, uint16, uint, uint) {
         require(0 < categoryId && categoryId <= _categoriesCount, "MoneyBoxSettings: Category does not exist");
         return (
             _categoryConfig[categoryId].name,
@@ -140,7 +141,7 @@ contract MoneyBoxSettings is SettingsBasic, IMoneyBoxSettings {
         });
     }
 
-    function getLogicSettings() override(IMoneyBoxSettings) external view returns(uint, uint, uint8) {
+    function getLogicSettings() external view returns(uint, uint, uint8) {
         return (
             _logicSettings.registerPrice,
             _logicSettings.amountForBonus,
@@ -148,7 +149,7 @@ contract MoneyBoxSettings is SettingsBasic, IMoneyBoxSettings {
         );
     }
 
-    function getBonusDistribution(uint8 id) override(IMoneyBoxSettings) external view returns(uint64, uint) {
+    function getBonusDistribution(uint8 id) external view returns(uint64, uint) {
         return (
             _logicSettings.bonusDistribution[id].accumulateNecessary,
             _logicSettings.bonusDistribution[id].amount

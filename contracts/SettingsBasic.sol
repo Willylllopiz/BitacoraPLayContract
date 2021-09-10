@@ -1,20 +1,23 @@
 pragma solidity ^0.6.2;
 
-import "./ISettingsBasic.sol";
 import "./CommonBasic.sol";
 
-contract SettingsBasic is CommonBasic, ISettingsBasic {
+contract SettingsBasic is CommonBasic {
+    event AdminAdded(address indexed _emitterAdmin, address indexed _addedAdmin, uint8 _adminId);
+    event AdminActivated(address indexed _emitterAdmin, address indexed _addedAdmin, uint8 _adminId);
+    event AdminDisabled(address indexed _emitterAdmin, address indexed _deletedAdmin, uint8 _adminId);
+    
     struct Admin {
         uint8 id;
         bool active;
     }
 
     uint8 public adminsActives;
-    uint8 nextAdminId;
-    mapping(address => Admin) admins;
-    mapping(uint8 => address) idToAdmin;
+    uint8 public nextAdminId;
+    mapping(address => Admin) public admins;
+    mapping(uint8 => address) public idToAdmin;
 
-    CommonSettings _commonSettings;
+    CommonSettings public _commonSettings;
 
     struct CommonSettings {
         uint8 minAllowedAdmins;
@@ -24,6 +27,7 @@ contract SettingsBasic is CommonBasic, ISettingsBasic {
     }
 
     modifier restricted() {
+        require(!_locked || msg.sender == _owner, "SettingsBasic: locked");
         require(isAdmin(msg.sender), "SettingsBasic: only admins");
         _;
     }
@@ -33,7 +37,7 @@ contract SettingsBasic is CommonBasic, ISettingsBasic {
         _;
     }
 
-    function addAdmin(address user) external override restricted returns(bool) {
+    function addAdmin(address user) external restricted returns(bool) {
         require(!isAdmin(user), 'SettingsBasic: The address is already admin');
         require(adminsActives < _commonSettings.maxAllowedAdmins, 'SettingsBasic: Validation max administrators allowed');
         adminsActives++;
@@ -54,7 +58,7 @@ contract SettingsBasic is CommonBasic, ISettingsBasic {
         return true;
     }
 
-    function deleteAdmin(address user) external override restricted returns(bool) {
+    function deleteAdmin(address user) external restricted returns(bool) {
         require(isAdmin(user), "SettingsBasic: The address isn't admin");
         require(adminsActives > _commonSettings.minAllowedAdmins, 'SettingsBasic: Validation min administrators allowed');
         adminsActives--;
@@ -64,7 +68,7 @@ contract SettingsBasic is CommonBasic, ISettingsBasic {
         return true;
     }
 
-    function getAllAdmins() external override view restricted returns(address[] memory) {
+    function getAllAdmins() external view restricted returns(address[] memory) {
         address[] memory result = new address[](nextAdminId-1);
         for(uint8 id = 1; id < nextAdminId;id++) {
             result[id-1] = idToAdmin[id];
@@ -72,7 +76,7 @@ contract SettingsBasic is CommonBasic, ISettingsBasic {
         return result;
     }
 
-    function getActiveAdmins() external override view restricted returns(address[] memory) {
+    function getActiveAdmins() external view restricted returns(address[] memory) {
         address[] memory result = new address[](adminsActives);
         uint8 activeId;
         for(uint8 id = 1; id < nextAdminId; id++) {
@@ -82,11 +86,11 @@ contract SettingsBasic is CommonBasic, ISettingsBasic {
         return result;
     }
 
-    function isAdmin(address user) public override view returns(bool) {
+    function isAdmin(address user) public view returns(bool) {
         return admins[user].active;
     }
 
-    function _initializeSettingsBasic(address _owner, ITRC20 _depositTokenAddress) internal {
+    function _initializeSettingsBasic(ITRC20 _depositTokenAddress) internal {
         depositToken = _depositTokenAddress;
         admins[_owner] = Admin({
             id: 1,
