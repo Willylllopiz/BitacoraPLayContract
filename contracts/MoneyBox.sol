@@ -1,12 +1,18 @@
 pragma solidity ^0.6.2;
 
-import "./IMoneyBoxSettings.sol";
 import "./CommonBasic.sol";
 import "./SafeTRC20.sol";
 
 interface IBitacoraBasic {
     function isUserExists(address user) external view returns (bool);
     function getUserInfo(address user) external view returns (uint, address, bool);
+}
+
+interface IMoneyBoxSettings {
+    function getCategoryInfo(uint8 categoryId) external view returns(bytes4, uint16, uint16, uint, uint);
+    function getLogicSettings() external view returns(uint, uint, uint8);
+    function getBonusDistribution(uint8 id) external view returns(uint64, uint);
+    function isAdmin(address user) external view returns(bool);
 }
 
 contract MoneyBox is CommonBasic {
@@ -58,8 +64,6 @@ contract MoneyBox is CommonBasic {
 
     IMoneyBoxSettings _settings;
     IBitacoraBasic _bitacoraImpl;
-    bool _locked;
-    address _owner;
 
     modifier onlyRegisteredUsers() {
         require(isUserActive(msg.sender), "[MoneyBox]: Only registered users");
@@ -72,29 +76,25 @@ contract MoneyBox is CommonBasic {
     }
 
     modifier restricted() {
+        require(!_locked || msg.sender == _owner, "MoneyBox: locked");
         require(_settings.isAdmin(msg.sender), "[MoneyBox]: Only admins");
         _;
     }
 
-    modifier onlyOwner() {
-        require(_owner == msg.sender, "[MoneyBox]: Only owner");
-        _;
-    }
-
-    modifier onlyUnlocked() {
-        require(!_locked || msg.sender == _owner);
-        _;
-    }
-
-    constructor(ITRC20 depositTokenAddress, IMoneyBoxSettings settings) public {
-        depositToken = depositTokenAddress;
+    constructor() public {
         _owner = msg.sender;
-        _settings = settings;
         _locked = true;
+    }
+
+    function initialize(ITRC20 depositTokenAddress, IMoneyBoxSettings settings, IBitacoraBasic bitacoraImpl) external onlyOwner {
+        depositToken = depositTokenAddress;
+        _settings = settings;
+        _bitacoraImpl = bitacoraImpl;
+        _locked = false;
     }
     
     //todo: ++++++
-    function registration() external  {
+    function registration() external onlyUnlocked {
         _registration(msg.sender);
     }
 
@@ -133,8 +133,9 @@ contract MoneyBox is CommonBasic {
                     adminTotalBalance += (bonus.accumulatedAmount - amountNecessary);
                     usersTotalBalance += amountNecessary;
                 } else {
-                    usersTotalBalance += bonusTotalBalance >= amountNecessary ? amountNecessary : bonusTotalBalance;
-                    usersBalanceAdminExtracted += bonusTotalBalance >= amountNecessary ? 0 : amountNecessary - bonusTotalBalance;
+                    usersTotalBalance += (bonusTotalBalance >= amountNecessary) ? amountNecessary : bonusTotalBalance;
+                    usersBalanceAdminExtracted += (bonusTotalBalance >= amountNecessary)
+                     ? 0 : (amountNecessary - bonusTotalBalance);
                     bonusAdminExtracted -= (bonusAdminExtracted >= (bonus.accumulatedAmount - bonusTotalBalance))
                      ? (bonus.accumulatedAmount - bonusTotalBalance) : bonusAdminExtracted;
                     bonusTotalBalance = 0;
@@ -162,27 +163,30 @@ contract MoneyBox is CommonBasic {
             require(usersTotalBalance >= amount, "[MoneyBox]: insufficient funds in the smart contract");
             userInfo.balance -= amount;
             usersTotalBalance -= amount;
-        } else depositToken.safeTransferFrom(user, address(this), amount);
+        } else {
+            depositToken.safeTransferFrom(user, address(this), amount);
+            totalBalance += amount;
+        }
         userInfo.depositsCount++;
         userInfo.deposits[userInfo.depositsCount] = BoxDeposit({
-            endTimestamp: block.timestamp + (1000 * 60 * catCountDays), // * 60 * 24),  TODO: CHANGE THIS TO DAYS
+            // endTimestamp: block.timestamp + ((1 days) * catCountDays),  //todo: USE THIS
+            endTimestamp: block.timestamp + ((1 minutes) * catCountDays), // + (1000 * 60 * 60 * 24 * catCountDays),
             withdrawAmount: _getPercentage(amount, catPercentage),
             active: true
         });        
         adminTotalBalance += amount;
-        totalBalance += amount;
         emit UserDeposit(user, userInfo.depositsCount, categoryId, amount, _getPercentage(amount, catPercentage), catPercentage);
     }
 
-    function depositFounds(uint8 categoryId, uint amount) external onlyRegisteredUsers {
+    function depositFounds(uint8 categoryId, uint amount) external onlyRegisteredUsers onlyUnlocked {
         _deposit(msg.sender, categoryId, amount, false);
     }
 
-    function depositFoundsFromBalance(uint8 categoryId, uint amount) external onlyRegisteredUsers {
+    function depositFoundsFromBalance(uint8 categoryId, uint amount) external onlyRegisteredUsers onlyUnlocked {
         _deposit(msg.sender, categoryId, amount, true);
     }
 
-    function retireFounds(uint amount) external onlyRegisteredUsers {
+    function retireFounds(uint amount) external onlyRegisteredUsers onlyUnlocked {
         require(amount > 0, "[MoneyBox]: Invalid amount");
         require(users[msg.sender].balance >= amount, "[MoneyBox]: insufficient funds");
         require(usersTotalBalance >= amount, "[MoneyBox]: insufficient funds in the smart contract");
@@ -197,15 +201,11 @@ contract MoneyBox is CommonBasic {
     // endregion
 
     // Admin
-    function changeLock() external onlyOwner() {
-        _locked = !_locked;
-    }
-
-    function changeSettignsImpl(IMoneyBoxSettings impl) external onlyOwner {
+    function changeSettingsImpl(IMoneyBoxSettings impl) external onlyOwner onlyUnlocked {
         _settings = impl;
     }
 
-    function changeBitacoraImpl(IBitacoraBasic impl) external onlyOwner {
+    function changeBitacoraImpl(IBitacoraBasic impl) external onlyOwner onlyUnlocked {
         _bitacoraImpl = impl;
     }
 
@@ -265,6 +265,7 @@ contract MoneyBox is CommonBasic {
         bonusAdminExtracted += bonusTotalBalance;
         usersBalanceAdminExtracted += usersTotalBalance;
         usersTotalBalance = 0;
+        bonusTotalBalance = 0;
         adminTotalBalance = 0;
         totalBalance = 0;
     }

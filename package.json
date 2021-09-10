@@ -1,0 +1,27 @@
+{
+  "name": "bitacora-smart-contracts",
+  "version": "1.0.0",
+  "description": "This is a bare-minimum TronBox (https://github.com/tronprotocol/tronbox)  project (`tronbox init`)",
+  "main": "soljson-v0.6.2+commit.bacdbe57.js",
+  "directories": {
+    "test": "tests",
+    "contracts": "contracts",
+    "migrations": "migrations"
+  },
+  "scripts": {
+    "test": "tronbox tests",
+    "migrate": "bash scripts/migrate-and-setup.sh",
+    "compile": "tronbox compile",
+    "compile-all": "tronbox compile --all"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Willylllopiz/BitacoraPLayContract.git"
+  },
+  "author": "Oscar Martin Gonzalez-Chavez y William Lopez LLopiz",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/Willylllopiz/BitacoraPLayContract/issues"
+  },
+  "homepage": "https://github.com/Willylllopiz/BitacoraPLayContract#readme"
+}
