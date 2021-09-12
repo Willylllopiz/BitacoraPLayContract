@@ -16,6 +16,7 @@ contract BitacoraPlay is BitacoraPlayBasic {
     event NewUserChildEvent(address indexed _user, address indexed _sponsor);
     event AvailableBalanceForMoneyBox(address indexed _user, uint _amounnt);
     event AvailableAdministrativeBalance(uint _amounnt); 
+    event CareerPlan_Royalties(address indexed _user, uint amount, uint8 _userLevel);
 
     struct User {
         uint id;
@@ -65,9 +66,10 @@ contract BitacoraPlay is BitacoraPlayBasic {
 
     mapping(address => User) users;
     mapping(uint => address) internal idToAddress;    
-    mapping(address => ReferredDistributionsPayments) userAvailablePayments;
+    mapping(address => ReferredDistributionsPayments) userAvailablePayments;   
 
     Prosumer prosumerContract;
+    Career careerContract;
 
     address public owner;
     address externalAddress;
@@ -80,8 +82,9 @@ contract BitacoraPlay is BitacoraPlayBasic {
 
     ReferredDistributionsPayments referredDistributionsPaymentsConfig;
     mapping(uint8 => ReferredRangeConfig) internal referredRangeConfig;
+    uint [] careerPlanPercentageConfig;
 
-    constructor(ITRC20 _depositTokenAddress, address _externalAddress, address _rootAddress, IMoneyBox _moneyBox, ISettingsBasic _settingsBasic, Prosumer _prosumerContract) public {
+    constructor(ITRC20 _depositTokenAddress, address _externalAddress, address _rootAddress, IMoneyBox _moneyBox, ISettingsBasic _settingsBasic, Prosumer _prosumerContract, Career _careerContract) public {
         _owner = msg.sender;
         _locked = false;
         depositToken = _depositTokenAddress;
@@ -91,6 +94,7 @@ contract BitacoraPlay is BitacoraPlayBasic {
 
         moneyBox = _moneyBox;
         prosumerContract = _prosumerContract;
+        careerContract = _careerContract;
         
         settingsBasic = _settingsBasic;
         // settingsBasic = _settingsBasic;
@@ -154,6 +158,12 @@ contract BitacoraPlay is BitacoraPlayBasic {
             coursePay: 2.4e18,
             admin: 9.2e18 //Surplus to Admin
         });
+
+        careerPlanPercentageConfig[0] = 0.3e18;
+        careerPlanPercentageConfig[1] = 0.6e18;
+        careerPlanPercentageConfig[2] = 0.9e18;
+        careerPlanPercentageConfig[3] = 1.2e18;
+
 
         externalAddress = _externalAddress;
         rootAddress = _rootAddress;
@@ -233,7 +243,6 @@ contract BitacoraPlay is BitacoraPlayBasic {
         updateActiveMembers(ACTIVE_LEVEL, users[_user].referrer);
         administrativeBalance += referredDistributionsPaymentsConfig.admin;
         // referredDistributionsPaymentsConfig.careerPlanFiveLevel;// TODO: Reparti esto con el plan carrera
-        // referredDistributionsPaymentsConfig.carrerPlanBonus;//TODO: DAr Este bono
         emit AvailableAdministrativeBalance(5e18);
         globalBalance += referralPlanPrice;
     }
@@ -248,6 +257,14 @@ contract BitacoraPlay is BitacoraPlayBasic {
         if(_level > 0 && _referrerAddress != rootAddress){
             users[_referrerAddress].referredPlan.accumulatedMembers ++;
             users[_referrerAddress].referredPlan.accumulatedPayments += referredDistributionsPaymentsConfig.referralBonus;
+            if(careerContract.isActive(_referrerAddress) && isActivatedMembership(_referrerAddress)){
+                users[_referrerAddress].pendingBonus.himSelf += careerPlanPercentageConfig[_level];
+                emit CareerPlan_Royalties(_referrerAddress, careerPlanPercentageConfig[_level], _level);
+            }
+            else{
+                administrativeBalance += careerPlanPercentageConfig[_level];
+                emit AvailableAdministrativeBalance(careerPlanPercentageConfig[_level]);
+            }
             if (checkRange(_referrerAddress, users[_referrerAddress].referRange)){
                 emit CompletedBonusEvent(_referrerAddress, users[_referrerAddress].id, users[_referrerAddress].referRange, 0);
                 changeRange(_referrerAddress);

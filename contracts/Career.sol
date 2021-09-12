@@ -11,7 +11,7 @@ contract Career is BitacoraPlayBasic{
     event Career_BonusAvailableToCollectEvent(address indexed _user, uint8 indexed _range, uint8 indexed plan);
 
     struct User {        
-        bool isCareer;
+        bool isActive;
         uint8 careerRange;
         uint accumulatedDirectPlanCareer;
         uint accumulatedPlanCareer;
@@ -126,13 +126,13 @@ contract Career is BitacoraPlayBasic{
         users[ _userAddress ].careerRange ++;
     }
     
-    function isCareer(address _userAddress) public view returns(bool){
-        return users[_userAddress].isCareer;
+    function isActive(address _userAddress) public view returns(bool){
+        return users[_userAddress].isActive;
     }
 
     function withdrawUserBonusByAdmin(uint _amount, address _user) external override restricted safeTransferAmount(_amount){
         require(0 < _amount, "BitacoraPlay: Invalid amount");
-        require(isCareer(_user) && isUserExists(_user), "user is not Prosumer");
+        require(isActive(_user) && isUserExists(_user), "user is not Prosumer");
         require(_amount <= pendingBonus[_user].adminBonus, "BitacoraPlay: insufficient funds");
         depositToken.safeTransfer(msg.sender, _amount);
         pendingBonus[_user].adminBonus -= _amount;
@@ -141,7 +141,7 @@ contract Career is BitacoraPlayBasic{
     }
 
     function witdrawUserFounds(uint _amount) external override safeTransferAmount(_amount){
-        require(isCareer(msg.sender) && isUserExists(msg.sender), "user is not Prosumer");
+        require(isActive(msg.sender) && isUserExists(msg.sender), "user is not Prosumer");
         require(0 < _amount, "BitacoraPlay: Invalid amount");
         require(_amount <= pendingBonus[msg.sender].himSelf, "BitacoraPlay: insufficient funds");
         depositToken.safeTransfer(msg.sender, _amount);
@@ -151,7 +151,7 @@ contract Career is BitacoraPlayBasic{
     }
 
     function userInvestmentInMoneyBox(uint _amount, uint8 _categoryId) external override safeTransferAmount(_amount){
-        require(isCareer(msg.sender) && isUserExists(msg.sender), "user is not exists");
+        require(isActive(msg.sender) && isUserExists(msg.sender), "user is not exists");
         require(50e18 < _amount, "BitacoraPlay: Invalid amount");//TODO: Verificar con oscar cual debe ser este valor
         require(_amount <= pendingBonus[msg.sender].moneyBox, "BitacoraPlay: insufficient funds");
         depositToken.safeIncreaseAllowance(address(moneyBox), _amount);
