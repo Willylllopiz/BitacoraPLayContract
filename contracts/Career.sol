@@ -2,9 +2,10 @@ pragma solidity ^0.6.2;
 // SPDX-License-Identifier: MIT
 
 import "./BitacoraPlayBasic.sol";
-import "./BitacoraPlay.sol";
+import "./IBitacoraPlay.sol";
+import "./ICareer.sol";
 
-contract Career is BitacoraPlayBasic{
+contract Career is ICareer, BitacoraPlayBasic{
     event Career_AvailableBalanceForMoneyBox(address indexed _user, uint _amounnt);
     event Career_AvailableAdministrativeBalance(uint _amounnt); 
     event Career_CompletedBonusEvent(address indexed _user, uint8 indexed _range, uint8 indexed plan);    
@@ -32,9 +33,8 @@ contract Career is BitacoraPlayBasic{
         uint himSelf;
     }
 
-    BitacoraPlay bitacoraPlay;
+    IBitacoraPlay bitacoraPlay;
 
-    address public owner;
     address externalAddress;
     address rootAddress;
 
@@ -45,12 +45,18 @@ contract Career is BitacoraPlayBasic{
     mapping(uint8 => CareerRangeConfig) internal careerRangeConfig;
     mapping(address => PendingBonus) public pendingBonus;    
 
-    constructor(ITRC20 _depositTokenAddress, address _externalAddress, address _rootAddress/*, IMoneyBox _moneyBox, BitacoraPlaySettings _bitacoraPlaySettings*/ ,BitacoraPlay _bitacoraPlay) public {
-        depositToken = _depositTokenAddress;
+    constructor(address _externalAddress, address _rootAddress) public {
         externalAddress = _externalAddress;
-        rootAddress = _rootAddress;
-        // moneyBox=_moneyBox;
-        // bitacoraPlaySettings = _bitacoraPlaySettings;
+        rootAddress = _rootAddress;    
+
+        _owner = msg.sender;
+        _locked = true;
+    }
+
+    function initialize(ITRC20 _depositTokenAddress, IMoneyBox _moneyBox, IBitacoraPlay  _bitacoraPlay, ISettingsBasic _settingsBasic) external onlyOwner{        
+        depositToken = _depositTokenAddress;
+        moneyBox = _moneyBox;
+        settingsBasic = _settingsBasic;
         bitacoraPlay = _bitacoraPlay;
 
         careerRangeConfig [1] = CareerRangeConfig({assetsDirect: 30, assetsSameNetwork: 0, bonusValue: 750e18, surplus:0});
@@ -58,22 +64,12 @@ contract Career is BitacoraPlayBasic{
         careerRangeConfig [3] = CareerRangeConfig({assetsDirect: 0, assetsSameNetwork: 1000, bonusValue: 1800e18, surplus:0});
         careerRangeConfig [4] = CareerRangeConfig({assetsDirect: 0, assetsSameNetwork: 5000, bonusValue: 7200e18, surplus:0});
 
-
+        _locked = false;
     }
 
     function isUserExists(address _user) public view override returns (bool){
         return bitacoraPlay.isUserExists(_user);
-    }
-
-    function isActivatedCareerPlan(address _user) public view returns(bool) {
-        // return users[_user].isActive;
-        return _user !=  rootAddress;
     }  
-
-    // function activateCareerPlan() external{      
-    //     require( bitacoraPlay.isActivatedMembership(msg.sender), "user is not active this month.");
-    //     payCareerPlanActivation(msg.sender);
-    // }
 
     function payCareerPlanActivation(address _user) private {
         require(bitacoraPlay.isUserExists(_user), "user is not exists. Register first.");
@@ -126,13 +122,13 @@ contract Career is BitacoraPlayBasic{
         users[ _userAddress ].careerRange ++;
     }
     
-    function isActive(address _userAddress) public view returns(bool){
+    function isActive(address _userAddress) public view override(ICareer) returns(bool){
         return users[_userAddress].isActive;
     }
 
     function withdrawUserBonusByAdmin(uint _amount, address _user) external override restricted safeTransferAmount(_amount){
         require(0 < _amount, "BitacoraPlay: Invalid amount");
-        require(isActive(_user) && isUserExists(_user), "user is not Prosumer");
+        require(isActive(_user) && isUserExists(_user), "user is not exists");
         require(_amount <= pendingBonus[_user].adminBonus, "BitacoraPlay: insufficient funds");
         depositToken.safeTransfer(msg.sender, _amount);
         pendingBonus[_user].adminBonus -= _amount;
@@ -141,7 +137,7 @@ contract Career is BitacoraPlayBasic{
     }
 
     function witdrawUserFounds(uint _amount) external override safeTransferAmount(_amount){
-        require(isActive(msg.sender) && isUserExists(msg.sender), "user is not Prosumer");
+        require(isActive(msg.sender) && isUserExists(msg.sender), "user is not exists");
         require(0 < _amount, "BitacoraPlay: Invalid amount");
         require(_amount <= pendingBonus[msg.sender].himSelf, "BitacoraPlay: insufficient funds");
         depositToken.safeTransfer(msg.sender, _amount);

@@ -2,17 +2,17 @@ pragma solidity ^0.6.2;
 // SPDX-License-Identifier: MIT
 
 import "./BitacoraPlayBasic.sol";
-import "./BitacoraPlay.sol";
+import "./IBitacoraPlay.sol";
 import "./Career.sol";
 import "./ISettingsBasic.sol";
+import "./IProsumer.sol";
 import "./SafeTRC20.sol";
 
-contract Prosumer is BitacoraPlayBasic{
+contract Prosumer is IProsumer, BitacoraPlayBasic{
 
     using SafeTRC20 for ITRC20;
     
     event Prosumer_NewProsumer(address indexed _user, uint8 _prosumerLevel);
-    event Prosumer_CompletedBonusEvent(address indexed _user, uint _userId, uint8 indexed _range, uint8 indexed plan);
     event Prosumer_BonusAvailableToCollectEvent(address indexed _user, uint8 indexed _range, uint8 indexed plan); //Plan 2 es el bono por activacion del plan prosumer y el plan 3 es el bono por cantidad de cursos vistos 
     event Prosumer_AvailableBalanceForMoneyBox(address indexed _user, uint _amounnt);
     event Prosumer_AvailableBalanceForUser(address indexed _user, uint _amounnt);
@@ -73,24 +73,34 @@ contract Prosumer is BitacoraPlayBasic{
     
     mapping(uint8 => ProsumerRangeConfig) internal prosumerRangeConfig;    
     mapping(uint8 => mapping(uint8 => CycleConfig)) internal prosumerPerCycleConfig;
-     mapping(uint8 => ProsumerLevelConfig) internal prosumerLevelConfig;
-     mapping(uint8 => mapping(uint8 => uint)) viewsCycleConfig;
+    mapping(uint8 => ProsumerLevelConfig) internal prosumerLevelConfig;
+    mapping(uint8 => mapping(uint8 => uint)) viewsCycleConfig;
 
-    BitacoraPlay bitacoraPlay;
+    IBitacoraPlay bitacoraPlay;
     Career careerPlan;
     
     uint public prosumerPlanPrice = 50e18;
     uint public courseId = 1;   
 
     modifier onlyContractRestricted(){
-        require(address(bitacoraPlay) != address(0), 'required BitacoraPlay address');
-        require(address(bitacoraPlay) == msg.sender, 'only BytacoraPlay Contract');
+        require(address(msg.sender) != address(0), 'Prosumer, required BitacoraPlay address');
+        require(address(bitacoraPlay) == msg.sender, 'Prosumer only BitacoraPlay Contract');
         _;
     }
 
     constructor() public {               
         administrativeBalance = 0;
-        globalBalance = 0;
+        globalBalance = 0;       
+
+        _owner = msg.sender;
+        _locked = true;
+    }
+
+    function initialize(ITRC20 _depositTokenAddress, IBitacoraPlay _bitacoraPlay, Career _careerPlan, ISettingsBasic _settingsBasic) external onlyOwner{        
+        depositToken = _depositTokenAddress; 
+        bitacoraPlay = _bitacoraPlay;
+        careerPlan = _careerPlan;
+        settingsBasic = _settingsBasic;
 
         prosumerRangeConfig [1] = ProsumerRangeConfig({assetsDirect: 10, bonusValue: 300e18, surplus: 200e18});
         prosumerRangeConfig [2] = ProsumerRangeConfig({assetsDirect: 40, bonusValue: 900e18, surplus: 1100e18});
@@ -130,15 +140,6 @@ contract Prosumer is BitacoraPlayBasic{
         prosumerLevelConfig[4].surplus = 10000e18;
         viewsCycleConfig[4][6] = 500;
 
-        _owner = msg.sender;
-        _locked = true;
-    }
-
-    function initialize(ITRC20 _depositTokenAddress, BitacoraPlay _bitacoraPlay, Career _careerPlan, ISettingsBasic _settingsBasic) external onlyOwner{        
-        depositToken = _depositTokenAddress; 
-        bitacoraPlay = _bitacoraPlay;
-        careerPlan = _careerPlan;
-        settingsBasic = _settingsBasic;
         _locked = false;
     }
 
@@ -146,14 +147,14 @@ contract Prosumer is BitacoraPlayBasic{
         return bitacoraPlay.isUserExists(_user);
     }
 
-    function getTransferBalanceByCourse(uint _course, address _userAddress) public view returns(uint){
+    function getTransferBalanceByCourse(uint _course, address _userAddress) public view override(IProsumer) returns(uint){
         if(users[_userAddress].accumulatedDirectToSeeCourse >= prosumerPerCycleConfig[courses[_course].prosumerLevel][courses[_course].cycle].assetsDirect){
             return prosumerPerCycleConfig[courses[_course].prosumerLevel][courses[_course].cycle].amountToPay +  prosumerPerCycleConfig[courses[_course].prosumerLevel][courses[_course].cycle].promotionBonus;
         }
         return 0;        
     }
 
-    function setAccumulatedDirectToSeeCourse(address _user) external onlyContractRestricted {
+    function setAccumulatedDirectToSeeCourse(address _user) external override(IProsumer) onlyContractRestricted {
         require(isUserExists(_user));
         users[_user].accumulatedDirectToSeeCourse++;
     }
@@ -161,13 +162,6 @@ contract Prosumer is BitacoraPlayBasic{
     function getAccumulatedDirectToSeeCourse(address _user) public view returns(uint){
         return users[_user].accumulatedDirectToSeeCourse;
     }  
-    
-    // // Pay Prosumer plan From BitacoraPlay Contract 
-    // function payProsumerPlan(address _userAddress, uint8 _prosumerLevel) external onlyContractRestricted {
-    //     updateProsumerPlan(_userAddress, _prosumerLevel);
-    //     depositToken.safeTransferFrom(msg.sender, address(this), prosumerPlanPrice);
-    //     emit Prosumer_NewProsumer(_userAddress, _prosumerLevel);
-    // }
 
     function setProsumerLevelByAdmin(address _userAddress, uint8 _prosumerLevel) external restricted {
         require(isProsumer(_userAddress), 'user is not a Prosumer!!');
@@ -185,7 +179,7 @@ contract Prosumer is BitacoraPlayBasic{
 
     function updateProsumerPlan(address _user, uint8 _prosumerLevel) internal {      
         require( bitacoraPlay.isActivatedMembership(_user), "user is not active this month.");
-        require(careerPlan.isActivatedCareerPlan(_user), "user does not active in Career Plan"); 
+        require(careerPlan.isActive(_user), "user does not active in Career Plan"); 
         users[_user].isProsumer = true;
         users[_user].prosumerLevel = _prosumerLevel;
         users[_user].prosumerBonusRange = 1;
@@ -232,7 +226,7 @@ contract Prosumer is BitacoraPlayBasic{
         return courseId-1;            
     }   
 
-    function buyCourseDirectByUser(uint _course, address _user, uint _amount) external {
+    function buyCourseDirectlyByUser(uint _course, address _user, uint _amount) external {
         require(isCourseExists(_course), "Course is not exists");  
         require( bitacoraPlay.isActivatedMembership(_user), "user is not active this month.");
         require(!courseXUsersViews[_course][_user], 'User already saw this video');
@@ -247,29 +241,33 @@ contract Prosumer is BitacoraPlayBasic{
 
     }
 
-    function buyCourse(uint _course, address _user) external onlyContractRestricted {            
+    function buyCourse(uint _course, address _user) external override(IProsumer) onlyContractRestricted returns(address, uint){            
         require(isCourseExists(_course), "Course is not exists");  
         require( bitacoraPlay.isActivatedMembership(_user), "user is not active this month.");
         require(users[_user].cycle <= courses[_course].cycle, 'user cycle no valid');
         require(users[_user].accumulatedDirectToSeeCourse >= prosumerPerCycleConfig[courses[_course].prosumerLevel][courses[_course].cycle].assetsDirect, "user is not ready to watch this video");
         require(!courseXUsersViews[_course][_user], 'User already saw this video');
-        depositToken.safeTransferFrom(msg.sender, address(this), prosumerPerCycleConfig[courses[_course].prosumerLevel][courses[_course].cycle].amountToPay + prosumerPerCycleConfig[courses[_course].prosumerLevel][courses[_course].cycle].promotionBonus);
-
-        courseXUsersViews[_course][_user] = true;
-        prosumerXLevelXCycleXViewsCount[courses[_course].prosumerAuthor][courses[_course].prosumerLevel][courses[_course].cycle]++;//deberia aumentar el valor que se va acumulando para el bono tambien (_promotionBonus)?
-        pendingBonus[courses[_course].prosumerAuthor].himSelf += prosumerPerCycleConfig[courses[_course].prosumerLevel][courses[_course].cycle].amountToPay;
-        emit Prosumer_AvailableCoursePaymentToProsumer(courses[_course].prosumerAuthor,  msg.sender, prosumerPerCycleConfig[courses[_course].prosumerLevel][courses[_course].cycle].amountToPay);
         
+        // depositToken.safeTransferFrom(msg.sender, address(this), prosumerPerCycleConfig[courses[_course].prosumerLevel][courses[_course].cycle].amountToPay + prosumerPerCycleConfig[courses[_course].prosumerLevel][courses[_course].cycle].promotionBonus);
+       
+       //Mark course viewed by user  
+        courseXUsersViews[_course][_user] = true;
+        //Number of views of a course per cycle of a user
+        prosumerXLevelXCycleXViewsCount[courses[_course].prosumerAuthor][courses[_course].prosumerLevel][courses[_course].cycle]++;//deberia aumentar el valor que se va acumulando para el bono tambien (_promotionBonus)?
+        // 
         checkAndUpdateProsumerLevel(courses[_course].prosumerAuthor);
-
-        globalBalance += prosumerPerCycleConfig[courses[_course].prosumerLevel][courses[_course].cycle].amountToPay + prosumerPerCycleConfig[courses[_course].prosumerLevel][courses[_course].cycle].promotionBonus;
+        // Pay cost Course
+        // pendingBonus[courses[_course].prosumerAuthor].himSelf += prosumerPerCycleConfig[courses[_course].prosumerLevel][courses[_course].cycle].amountToPay;
+        emit Prosumer_AvailableCoursePaymentToProsumer(courses[_course].prosumerAuthor,  msg.sender, prosumerPerCycleConfig[courses[_course].prosumerLevel][courses[_course].cycle].amountToPay);
+        return (courses[_course].prosumerAuthor, prosumerPerCycleConfig[courses[_course].prosumerLevel][courses[_course].cycle].amountToPay);
+        // globalBalance += prosumerPerCycleConfig[courses[_course].prosumerLevel][courses[_course].cycle].amountToPay + prosumerPerCycleConfig[courses[_course].prosumerLevel][courses[_course].cycle].promotionBonus;
     }
 
     function checkAndUpdateProsumerLevel(address _prosumer) internal {
         require(isProsumer(_prosumer), 'user is not a Prosumer');
         if(users[_prosumer].prosumerLevel == 1 && 
         viewsCycleConfig[users[_prosumer].prosumerLevel][1] >= prosumerXLevelXCycleXViewsCount[_prosumer][users[_prosumer].prosumerLevel][1]){
-            setBonus(_prosumer, prosumerLevelConfig[users[_prosumer].prosumerLevel].bonusValue, prosumerLevelConfig[users[_prosumer].prosumerLevel].surplus, 0, 3);
+            bitacoraPlay.setExternalPendingBonus(_prosumer, prosumerLevelConfig[users[_prosumer].prosumerLevel].bonusValue, prosumerLevelConfig[users[_prosumer].prosumerLevel].surplus, users[_prosumer].prosumerLevel, 0, 3);
             users[_prosumer].prosumerLevel++;
             return;
         }
@@ -277,40 +275,24 @@ contract Prosumer is BitacoraPlayBasic{
         viewsCycleConfig[2][1] >= prosumerXLevelXCycleXViewsCount[_prosumer][2][1] &&
         viewsCycleConfig[2][2] >= prosumerXLevelXCycleXViewsCount[_prosumer][2][2] &&
         viewsCycleConfig[2][3] >= prosumerXLevelXCycleXViewsCount[_prosumer][2][3] ){
-            setBonus(_prosumer, 0, prosumerLevelConfig[users[_prosumer].prosumerLevel].surplus, prosumerLevelConfig[users[_prosumer].prosumerLevel].bonusValue, 3);
+            bitacoraPlay.setExternalPendingBonus(_prosumer, 0, prosumerLevelConfig[users[_prosumer].prosumerLevel].surplus, prosumerLevelConfig[users[_prosumer].prosumerLevel].bonusValue, users[_prosumer].prosumerLevel, 3);
             users[_prosumer].prosumerLevel++;
             return;
         }
         if(users[_prosumer].prosumerLevel == 3 && 
         viewsCycleConfig[3][4] >= prosumerXLevelXCycleXViewsCount[_prosumer][3][4] &&
         viewsCycleConfig[3][5] >= prosumerXLevelXCycleXViewsCount[_prosumer][3][5]){
-            setBonus(_prosumer, 0, prosumerLevelConfig[users[_prosumer].prosumerLevel].surplus, prosumerLevelConfig[users[_prosumer].prosumerLevel].bonusValue, 3);
+            bitacoraPlay.setExternalPendingBonus(_prosumer, 0, prosumerLevelConfig[users[_prosumer].prosumerLevel].surplus, prosumerLevelConfig[users[_prosumer].prosumerLevel].bonusValue, users[_prosumer].prosumerLevel, 3);
             users[_prosumer].prosumerLevel++;
             return;
         }
         
         if(users[_prosumer].prosumerLevel == 4 && 
         viewsCycleConfig[4][6] >= prosumerXLevelXCycleXViewsCount[_prosumer][4][6] ){
-            setBonus(_prosumer, 0, prosumerLevelConfig[users[_prosumer].prosumerLevel].surplus, prosumerLevelConfig[users[_prosumer].prosumerLevel].bonusValue, 3);
+            bitacoraPlay.setExternalPendingBonus(_prosumer, 0, prosumerLevelConfig[users[_prosumer].prosumerLevel].surplus, prosumerLevelConfig[users[_prosumer].prosumerLevel].bonusValue, users[_prosumer].prosumerLevel, 3);
             users[_prosumer].prosumerLevel++;
             return;
         }
-    }
-
-    function setBonus(address _user, uint _moneyBox, uint _adminBonus, uint _himself, uint8 _plan) internal {
-        if(_moneyBox > 0){
-            pendingBonus[_user].moneyBox += _moneyBox;
-            emit Prosumer_AvailableBalanceForMoneyBox(_user, _moneyBox);
-        }
-        if(_adminBonus > 0){
-            administrativeBalance += _adminBonus;
-            emit Prosumer_AvailableAdministrativeBalance(_adminBonus);
-        }
-        if(_himself > 0){
-            pendingBonus[_user].himSelf += _himself;
-            emit Prosumer_AvailableBalanceForUser(_user, _himself);
-        }                   
-        emit Prosumer_BonusAvailableToCollectEvent(_user, users[_user].prosumerLevel, _plan);
     }
 
     function withdrawUserBonusByAdmin(uint _amount, address _user) external override restricted safeTransferAmount(_amount){
