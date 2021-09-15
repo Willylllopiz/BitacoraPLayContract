@@ -102,8 +102,26 @@ contract SettingsBasic is CommonBasic {
         _commonSettings = CommonSettings({
             minAllowedAdmins: 1,
             maxAllowedAdmins: 5,
-            maxAmountToWithdraw: 1000000e18,
-            minAmountToWithdraw: 10e18
+            maxAmountToWithdraw: 1000000e6,
+            minAmountToWithdraw: 10e6
         });
     }
+
+    function setCommonSettings(uint8 minAllowedAdmins, uint8 maxAllowedAdmins, uint maxAmountToWithdraw, uint minAmountToWithdraw) external restricted {
+        require(minAllowedAdmins > 0 && minAmountToWithdraw > 0);
+        _commonSettings.minAllowedAdmins = minAllowedAdmins;
+        _commonSettings.maxAllowedAdmins = maxAllowedAdmins;
+        _commonSettings.minAmountToWithdraw = minAmountToWithdraw;
+        _commonSettings.maxAmountToWithdraw = maxAmountToWithdraw;
+    }
+
+    function getCommonSettings() external view restricted returns(uint8, uint8, uint, uint) {
+        return (
+            _commonSettings.minAllowedAdmins,
+            _commonSettings.maxAllowedAdmins,
+            _commonSettings.minAmountToWithdraw,
+            _commonSettings.maxAmountToWithdraw
+        );
+    }
+
 }

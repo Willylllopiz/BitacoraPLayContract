@@ -6,6 +6,9 @@ contract MoneyBoxSettings is SettingsBasic {
     event CategoryConfigAdded(address indexed admin, uint8 categoryId, bytes4 name, uint16 percentage, uint16 countDays, uint minDeposit, uint maxDeposit);
     event CategoryConfigDeleted(address indexed admin, uint8 categoryId);
     event CategoryConfigUpdated(address indexed admin, uint8 categoryId, bytes4 name, uint16 percentage, uint16 countDays, uint minDeposit, uint maxDeposit);
+    event BonusDistributionAdded(address indexed admin, uint8 bonusDistributionId, uint64 accumulateNecessary, uint amount);
+    event BonusDistributionUpdated(address indexed admin, uint8 bonusDistributionId, uint64 accumulateNecessary, uint amount);
+    event ReegisterSettingsUpdated(address indexed admin, uint registerPrice, uint amountForBonus);
     
     struct CategoryConfig {
         bytes4 name;
@@ -18,19 +21,15 @@ contract MoneyBoxSettings is SettingsBasic {
     mapping(uint8 => CategoryConfig) public _categoryConfig;
     uint8 _categoriesCount;
 
-    struct LogicSettings {
-        uint registerPrice;
-        uint amountForBonus;
-        mapping(uint8 => BonusDistribution) bonusDistribution;
-        uint8 bonusesCount;
-    }
+    uint registerPrice;
+    uint amountForBonus;
+    mapping(uint8 => BonusDistribution) public bonusDistribution;
+    uint8 bonusesCount;
 
     struct BonusDistribution {
         uint64 accumulateNecessary;
         uint amount;
     }
-
-    LogicSettings public _logicSettings;
 
     constructor() public {
         _owner = msg.sender;
@@ -44,42 +43,42 @@ contract MoneyBoxSettings is SettingsBasic {
             name: "M3",
             percentage: 112,
             countDays: 90,
-            minDeposit: 10e18,
-            maxDeposit: 10000e18,
+            minDeposit: 10e6,
+            maxDeposit: 10000e6,
             active: true
         });
         _categoryConfig[2] = CategoryConfig({
             name: "M6",
             percentage: 142,
             countDays: 180,
-            minDeposit: 10e18,
-            maxDeposit: 10000e18,
+            minDeposit: 10e6,
+            maxDeposit: 10000e6,
             active: true
         });
         _categoryConfig[3] = CategoryConfig({
             name: "M12",
             percentage: 244,
             countDays: 360,
-            minDeposit: 10e18,
-            maxDeposit: 10000e18,
+            minDeposit: 10e6,
+            maxDeposit: 10000e6,
             active: true
         });
         
-        _logicSettings.registerPrice = 50e18;
-        _logicSettings.amountForBonus = 40e18;
-        _logicSettings.bonusDistribution[1] = BonusDistribution({
+        registerPrice = 50e6;
+        amountForBonus = 40e6;
+        bonusDistribution[1] = BonusDistribution({
             accumulateNecessary: 30,
-            amount: 1000e18
+            amount: 1000e6
         });
-        _logicSettings.bonusDistribution[2] = BonusDistribution({
+        bonusDistribution[2] = BonusDistribution({
             accumulateNecessary: 100,
-            amount: 1750e18
+            amount: 1750e6
         });
-        _logicSettings.bonusDistribution[3] = BonusDistribution({
+        bonusDistribution[3] = BonusDistribution({
             accumulateNecessary: 300,
-            amount: 5000e18
+            amount: 5000e6
         });
-        _logicSettings.bonusesCount = 3;
+        bonusesCount = 3;
         _locked = false;
     }
 
@@ -114,45 +113,63 @@ contract MoneyBoxSettings is SettingsBasic {
         emit CategoryConfigUpdated(msg.sender, categoryId, name, percentage, countDays, minDeposit, maxDeposit);
     }
 
-    function getCategoryInfo(uint8 categoryId) public view returns(bytes4, uint16, uint16, uint, uint) {
+    function getCountCategories() external view returns(uint8) {
+        return _categoriesCount;
+    }
+
+    function getCategoryInfo(uint8 categoryId) public view returns(bytes4, uint16, uint16, uint, uint, bool) {
         require(0 < categoryId && categoryId <= _categoriesCount, "MoneyBoxSettings: Category does not exist");
         return (
             _categoryConfig[categoryId].name,
             _categoryConfig[categoryId].percentage,
             _categoryConfig[categoryId].countDays,
             _categoryConfig[categoryId].minDeposit,
-            _categoryConfig[categoryId].maxDeposit
+            _categoryConfig[categoryId].maxDeposit,
+            _categoryConfig[categoryId].active
         );
     }
 
     function addBonusDistribution(uint64 accumulateNecessary, uint amount) external {
-        require(_logicSettings.bonusDistribution[_logicSettings.bonusesCount].accumulateNecessary < accumulateNecessary);
+        require(bonusDistribution[bonusesCount].accumulateNecessary < accumulateNecessary);
         require(accumulateNecessary > 0 && amount > 0);
-        _logicSettings.bonusDistribution[++_logicSettings.bonusesCount] = BonusDistribution({
+        bonusDistribution[++bonusesCount] = BonusDistribution({
             accumulateNecessary: accumulateNecessary, amount: amount
         });
+        emit BonusDistributionAdded(msg.sender, bonusesCount, accumulateNecessary, amount);
     }
 
     function changeBonusDistribution(uint8 bonusDistributionId, uint64 accumulateNecessary, uint amount) external {
-        require(bonusDistributionId > 0 && bonusDistributionId <= _logicSettings.bonusesCount);
+        require(bonusDistributionId > 0 && bonusDistributionId <= bonusesCount);
         require(accumulateNecessary > 0 && amount > 0);
-        _logicSettings.bonusDistribution[bonusDistributionId] = BonusDistribution({
+        bonusDistribution[bonusDistributionId] = BonusDistribution({
             accumulateNecessary: accumulateNecessary, amount: amount
         });
+        emit BonusDistributionUpdated(msg.sender, bonusDistributionId, accumulateNecessary, amount);
+    }
+
+    function changeRegisterSettings(uint newRegisterPrice, uint newAmountForBonus) external {
+        require(newAmountForBonus <= newRegisterPrice, "[MoneyBoxSettings]: newAmountForBonus <= newRegisterPrice");
+        registerPrice = newRegisterPrice;
+        amountForBonus = newAmountForBonus;
+        emit ReegisterSettingsUpdated(msg.sender, registerPrice, amountForBonus);
     }
 
     function getLogicSettings() external view returns(uint, uint, uint8) {
         return (
-            _logicSettings.registerPrice,
-            _logicSettings.amountForBonus,
-            _logicSettings.bonusesCount
+            registerPrice,
+            amountForBonus,
+            bonusesCount
         );
     }
 
     function getBonusDistribution(uint8 id) external view returns(uint64, uint) {
         return (
-            _logicSettings.bonusDistribution[id].accumulateNecessary,
-            _logicSettings.bonusDistribution[id].amount
+            bonusDistribution[id].accumulateNecessary,
+            bonusDistribution[id].amount
         );
+    }
+
+    function getBonusesCount() external view returns(uint8) {
+        return bonusesCount;
     }
 }
