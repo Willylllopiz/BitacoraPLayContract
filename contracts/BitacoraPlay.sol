@@ -26,6 +26,7 @@ contract BitacoraPlay is BitacoraPlayBasic, IBitacoraPlay {
         uint8 referRange;
         ReferredPlan referredPlan;
         PendingBonus pendingBonus;
+        AcademicInfo academicInfo;
         uint256 activationDate;
     }
 
@@ -33,6 +34,13 @@ contract BitacoraPlay is BitacoraPlayBasic, IBitacoraPlay {
         uint accumulatedMembers; //Cantidad acumulada de pagos de hasta el quinto nivel
         uint accumulatedDirectMembers; //cantidad acumulada de referidos directos para uso de los bonos
         uint accumulatedPayments; //cantidad acumulada de pagos para la distribucion del bono actual del usuario
+        
+    }
+
+    struct AcademicInfo{
+        uint accumulatedDirectToSeeCourse;
+        uint coursePay; 
+        uint8 cycle;
     }
 
      struct PendingBonus {
@@ -61,9 +69,7 @@ contract BitacoraPlay is BitacoraPlayBasic, IBitacoraPlay {
     }
 
     mapping(address => User) users;
-    mapping(uint => address) internal idToAddress;    
-    mapping(address => uint) coursePay;   
-
+    mapping(uint => address) internal idToAddress; 
     IProsumer prosumerContract;
     ICareer careerContract;
 
@@ -87,11 +93,11 @@ contract BitacoraPlay is BitacoraPlayBasic, IBitacoraPlay {
         _;
     }
 
-    modifier onlyCareerContractRestricted(){
-        require(address(msg.sender) != address(0), 'BitacoraPlay: required valid address');
-        require(address(careerContract) == msg.sender, 'BitacoraPlay: only Career Contract');
-        _;
-    }
+    // modifier onlyCareerContractRestricted(){
+    //     require(address(msg.sender) != address(0), 'BitacoraPlay: required valid address');
+    //     require(address(careerContract) == msg.sender, 'BitacoraPlay: only Career Contract');
+    //     _;
+    // }
 
     constructor(address _externalAddress, address _rootAddress) public {
         globalBalance = 0;
@@ -231,13 +237,16 @@ contract BitacoraPlay is BitacoraPlayBasic, IBitacoraPlay {
         depositToken.safeTransferFrom(_user, address(this), referralPlanPrice);
         globalBalance += referralPlanPrice;
         users[_user].activationDate =  block.timestamp + 30 days;
-        users[users[_user].referrer].referredPlan.accumulatedDirectMembers ++;
-        users[_user].pendingBonus.referralDirectPayments += referredDistributionsPaymentsConfig.referralDirectPayment;
-        
-        coursePay[users[_user].referrer] += referredDistributionsPaymentsConfig.coursePay;
+
+        User storage sponsorInfo = users[users[_user].referrer];
+        sponsorInfo.referredPlan.accumulatedDirectMembers ++;
+        sponsorInfo.pendingBonus.referralDirectPayments += referredDistributionsPaymentsConfig.referralDirectPayment;        
+        sponsorInfo.academicInfo.accumulatedDirectToSeeCourse ++;
+        sponsorInfo.academicInfo.coursePay += referredDistributionsPaymentsConfig.coursePay;
+        // prosumerContract.setAccumulatedDirectToSeeCourse(users[_user].referrer);
+
         accumulatedAcademicExcellenceBonus += referredDistributionsPaymentsConfig.careerPlanBonus;
        
-        prosumerContract.setAccumulatedDirectToSeeCourse(users[_user].referrer);
         updateActiveMembers(ACTIVE_LEVEL, users[_user].referrer);
         updateCareerPlan(1, users[_user].referrer);
 
@@ -353,16 +362,15 @@ contract BitacoraPlay is BitacoraPlayBasic, IBitacoraPlay {
 
 // Start Region Prosumer
     function buyCourse(uint _courseId) external {
-        (uint _courseCost) = prosumerContract.getTransferBalanceByCourse(_courseId, msg.sender);
+        (uint _courseCost) = prosumerContract.getTransferBalanceByCourse(_courseId, users[msg.sender].academicInfo.accumulatedDirectToSeeCourse);
         require(_courseCost > 0 , 'Prosumer: you do not have enough direct referrals');
-        require(_courseCost <= coursePay[msg.sender], 'Prosumer: balance not valid');        
-        (address _prosumer, uint _courseGain) = prosumerContract.buyCourse(_courseId, msg.sender);
-        users[_prosumer].pendingBonus.himSelf += _courseGain;
-        emit AvailableBalanceForUser(_prosumer, _courseGain);
-        coursePay[msg.sender] -= _courseCost;
+        require(_courseCost <= users[msg.sender].academicInfo.coursePay, 'Prosumer: balance of user is not valid');        
+        (address _prosumer, uint _courseGain, uint _moneyBox, uint _adminBonus, uint _himself, uint8 _level, uint8 _plan) = prosumerContract.buyCourse(_courseId, msg.sender);       
+        setProsumerPendingBonus(_prosumer, _moneyBox, _adminBonus, (_himself + _courseGain), _level, _plan);
+        users[msg.sender].academicInfo.coursePay -= _courseCost;
     }
 
-    function setExternalPendingBonus(address _user, uint _moneyBox, uint _adminBonus, uint _himself, uint8 _level, uint8 _plan) external override onlyProsumerContractRestricted {
+    function setProsumerPendingBonus(address _user, uint _moneyBox, uint _adminBonus, uint _himself, uint8 _level, uint8 _plan) internal {
         if(_moneyBox > 0){
             users[_user].pendingBonus.moneyBox += _moneyBox;
             emit AvailableBalanceForMoneyBox(_user, _moneyBox);
@@ -374,16 +382,22 @@ contract BitacoraPlay is BitacoraPlayBasic, IBitacoraPlay {
         if(_himself > 0){
             users[_user].pendingBonus.himSelf += _himself;
             emit AvailableBalanceForUser(_user, _himself);
-        }                   
-        emit BonusAvailableToCollectEvent(_user, users[_user].id, _level, _plan);
-        
+        }
+        if(_plan != 0 ){
+            emit BonusAvailableToCollectEvent(_user, users[_user].id, _level, _plan);  
+        }              
+    }
+
+    function getAccumulatedDirectToSeeCourse(address _userAddress) external view override(IBitacoraPlay) returns(uint){
+        require(isUserExists(_userAddress), "BitacoraPlay: user is not Exist");
+        return users[_userAddress].academicInfo.accumulatedDirectToSeeCourse;
     }
 // End Region Prosumer
 
 // Start Region Withdrawals
     function withdrawUserBonusByAdmin(uint _amount, address _user) external override restricted safeTransferAmount(_amount){
         require(0 < _amount, "BitacoraPlay: Invalid amount");
-        require(isUserExists(_user), "BitacoraPlay: user is not Prosumer");
+        require(isUserExists(_user), "BitacoraPlay: user is not Exist");
         require(_amount <= users[_user].pendingBonus.adminBonus, "BitacoraPlay: insufficient funds");
         depositToken.safeTransfer(msg.sender, _amount);
         globalBalance -= _amount;
