@@ -53,7 +53,7 @@ contract BitacoraPlay is BitacoraPlayBasic, IBitacoraPlay {
     struct ReferredRangeConfig {
         uint assetsDirect;
         uint assetsSameNetwork;
-        uint8 qualifyingCycles;
+        uint8 qualificationPeriod;
 
         uint bonusValue;
         uint surplus;
@@ -127,7 +127,7 @@ contract BitacoraPlay is BitacoraPlayBasic, IBitacoraPlay {
         referredRangeConfig [1] = ReferredRangeConfig({
             assetsDirect: 30,
             assetsSameNetwork: 3000,
-            qualifyingCycles: 1,
+            qualificationPeriod: 1,
             bonusValue: 500e18,
             surplus: 40e18, 
             remainderVehicleBonus: 540e18
@@ -136,7 +136,7 @@ contract BitacoraPlay is BitacoraPlayBasic, IBitacoraPlay {
         referredRangeConfig[2] = ReferredRangeConfig({
             assetsDirect: 100,
             assetsSameNetwork: 7000,
-            qualifyingCycles: 2,
+            qualificationPeriod: 2,
             bonusValue: 1800e18,
             surplus: 0,
             remainderVehicleBonus: 3240e18
@@ -145,7 +145,7 @@ contract BitacoraPlay is BitacoraPlayBasic, IBitacoraPlay {
         referredRangeConfig[3] = ReferredRangeConfig({
             assetsDirect: 300,
             assetsSameNetwork: 20000,
-            qualifyingCycles: 2,
+            qualificationPeriod: 2,
             bonusValue: 4500e18,
             surplus: 0e18,
             remainderVehicleBonus: 9900e18
@@ -154,7 +154,7 @@ contract BitacoraPlay is BitacoraPlayBasic, IBitacoraPlay {
         referredRangeConfig[4] = ReferredRangeConfig({
             assetsDirect: 300,
             assetsSameNetwork: 20000,
-            qualifyingCycles: 2,
+            qualificationPeriod: 2,
             bonusValue: 0e18,
             surplus: 0e18,
             remainderVehicleBonus: 14400e18
@@ -291,7 +291,7 @@ contract BitacoraPlay is BitacoraPlayBasic, IBitacoraPlay {
         require(_range > 0, "BitacoraPlay: range not valid");
         if(_range > numberOfRange ) { return false;} //it is in last range!!!
         return users[ _userAddress ].referredPlan.accumulatedMembers >= (referredRangeConfig[_range].assetsSameNetwork *
-        referredRangeConfig[_range].qualifyingCycles ) &&
+        referredRangeConfig[_range].qualificationPeriod ) &&
         users[ _userAddress ].referredPlan.accumulatedDirectMembers >= referredRangeConfig[_range].assetsDirect;
     }
 
