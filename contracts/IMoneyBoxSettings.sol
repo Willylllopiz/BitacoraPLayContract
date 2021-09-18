@@ -8,7 +8,7 @@ import "./ITRC20.sol";
 interface IMoneyBoxSettings is ISettingsBasic {
     function initialize(ITRC20 _depositTokenAddress) external;
     function addCategory(bytes4 name, uint16 percentage, uint16 countDays, uint minDeposit, uint maxDeposit) external;
-    function deleteCategory(uint8 categoryId) external;
+    function changeCategoryStatus(uint8 categoryId) external;
     function updateCategory(uint8 categoryId, bytes4 name, uint16 percentage, uint16 countDays, uint minDeposit, uint maxDeposit) external;
     function getCountCategories() external view returns(uint8);
     function getCategoryInfo(uint8 categoryId) external view returns(bytes4, uint16, uint16, uint, uint, bool);

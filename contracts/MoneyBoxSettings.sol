@@ -4,11 +4,11 @@ import "./SettingsBasic.sol";
 
 contract MoneyBoxSettings is SettingsBasic {
     event CategoryConfigAdded(address indexed admin, uint8 categoryId, bytes4 name, uint16 percentage, uint16 countDays, uint minDeposit, uint maxDeposit);
-    event CategoryConfigDeleted(address indexed admin, uint8 categoryId);
+    event CategoryConfigUpdatedStatus(address indexed admin, uint8 categoryId, bool active);
     event CategoryConfigUpdated(address indexed admin, uint8 categoryId, bytes4 name, uint16 percentage, uint16 countDays, uint minDeposit, uint maxDeposit);
     event BonusDistributionAdded(address indexed admin, uint8 bonusDistributionId, uint64 accumulateNecessary, uint amount);
     event BonusDistributionUpdated(address indexed admin, uint8 bonusDistributionId, uint64 accumulateNecessary, uint amount);
-    event ReegisterSettingsUpdated(address indexed admin, uint registerPrice, uint amountForBonus);
+    event RegisterSettingsUpdated(address indexed admin, uint registerPrice, uint amountForBonus);
     
     struct CategoryConfig {
         bytes4 name;
@@ -96,15 +96,15 @@ contract MoneyBoxSettings is SettingsBasic {
         emit CategoryConfigAdded(msg.sender, _categoriesCount, name, percentage, countDays, minDeposit, maxDeposit);
     }
 
-    function deleteCategory(uint8 categoryId) external restricted {
+    function changeCategoryStatus(uint8 categoryId) external restricted {
         require(0 < categoryId && categoryId <= _categoriesCount, "MoneyBoxSettings: Category does not exist");
-        require(_categoryConfig[categoryId].active, "MoneyBoxSettings: Category does not exist");
-        _categoryConfig[categoryId].active = false;
-        emit CategoryConfigDeleted(msg.sender, categoryId);
+        _categoryConfig[categoryId].active = !_categoryConfig[categoryId].active;
+        emit CategoryConfigUpdatedStatus(msg.sender, categoryId, _categoryConfig[categoryId].active);
     }
 
     function updateCategory(uint8 categoryId, bytes4 name, uint16 percentage, uint16 countDays, uint minDeposit, uint maxDeposit) external restricted {
         require(0 < categoryId && categoryId <= _categoriesCount, "MoneyBoxSettings: Category does not exist");
+        require(_categoryConfig[categoryId].active, "MoneyBoxSettings: The Category is inactive");
         _categoryConfig[categoryId].name = name;
         _categoryConfig[categoryId].percentage = percentage;
         _categoryConfig[categoryId].countDays = countDays;
@@ -151,7 +151,7 @@ contract MoneyBoxSettings is SettingsBasic {
         require(newAmountForBonus <= newRegisterPrice, "[MoneyBoxSettings]: newAmountForBonus <= newRegisterPrice");
         registerPrice = newRegisterPrice;
         amountForBonus = newAmountForBonus;
-        emit ReegisterSettingsUpdated(msg.sender, registerPrice, amountForBonus);
+        emit RegisterSettingsUpdated(msg.sender, registerPrice, amountForBonus);
     }
 
     function getLogicSettings() external view returns(uint, uint, uint8) {
