@@ -42,8 +42,8 @@ contract BitacoraBasic {
     function isUserExists(address user) public view returns (bool) {
         return users[user].id > 0;
     }
-    function getUserInfo(address user) external view returns (uint, address, bool) {
-        return (users[user].id, users[user].sponsor, users[user].id > 0);
+    function getUserInfo(address user) external view returns (uint, address) {
+        return (users[user].id, users[user].sponsor);
     }
 
 }

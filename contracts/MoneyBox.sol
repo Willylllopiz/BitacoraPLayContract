@@ -6,15 +6,8 @@ import "./IMoneyBoxSettings.sol";
 
 interface IBitacoraBasic {
     function isUserExists(address user) external view returns (bool);
-    function getUserInfo(address user) external view returns (uint, address, bool);
+    function getUserInfo(address user) external view returns (uint, address);
 }
-
-// interface IMoneyBoxSettings {
-//     function getCategoryInfo(uint8 categoryId) external view returns(bytes4, uint16, uint16, uint, uint);
-//     function getLogicSettings() external view returns(uint, uint, uint8);
-//     function getBonusDistribution(uint8 id) external view returns(uint64, uint);
-//     function isAdmin(address user) external view returns(bool);
-// }
 
 contract MoneyBox is CommonBasic {
     using SafeTRC20 for ITRC20;
@@ -31,6 +24,12 @@ contract MoneyBox is CommonBasic {
     event AdminRetireFoundsFromBonusBalance(address admin, uint amount);
     event AdminReturnFoundsToBonusBalance(address admin, uint amount);
     event AdminRetireAllFounds(address admin, uint amount);
+
+    enum DepositType {
+        Balance,
+        User,
+        Bitacora
+    }
 
     struct User {
         uint id;
@@ -96,22 +95,23 @@ contract MoneyBox is CommonBasic {
     
     //todo: ++++++
     function registration() external onlyUnlocked {
-        _registration(msg.sender);
+        _registration(msg.sender, msg.sender);
     }
 
-    function _registration(address user) private {
+    function _registration(address user, address provider) private returns(uint) {
         require(address(_bitacoraImpl) != address(0), "[MoneyBox]: Not bitacora implementation");
         require(users[user].id == 0, "[MoneyBox]: User already registered");
-        (uint userId, address sponsor,) = _bitacoraImpl.getUserInfo(user);
+        (uint userId, address sponsor) = _bitacoraImpl.getUserInfo(user);
         require(userId > 0, "[MoneyBox]: User isn't valid");
         (uint registerPrice, uint amountForBonus, uint8 bonusesCount) = _settings.getLogicSettings();
-        depositToken.safeTransferFrom(user, address(this), registerPrice);
+        depositToken.safeTransferFrom(provider, address(this), registerPrice);
         ++countUsers;
         users[user].id = userId;
         adminTotalBalance += (registerPrice - amountForBonus);
         totalBalance += registerPrice;
         applyDistribution(user, sponsor, amountForBonus, bonusesCount);
         emit SignUp(user);
+        return registerPrice;
     }
 
     function applyDistribution(address user, address sponsor, uint amountForBonus, uint8 bonusesCount) private returns(bool) {
@@ -149,7 +149,7 @@ contract MoneyBox is CommonBasic {
         return true;
     }
 
-    function _deposit(address user, uint8 categoryId, uint amount, bool fromBalance) internal {
+    function _deposit(address user, uint8 categoryId, uint amount, DepositType depositType) internal {
         (, uint16 catPercentage, uint16 catCountDays, uint catMinDeposit, uint catMaxDeposit, bool active) = _settings.getCategoryInfo(categoryId);
         require(active, "[MoneyBox]: The category is inactive");
         require(
@@ -160,13 +160,15 @@ contract MoneyBox is CommonBasic {
         );
         User storage userInfo = users[user];
         
-        if(fromBalance) {
+        if(depositType == DepositType.Balance) {
             require(userInfo.balance >= amount, "[MoneyBox]: Insufficient funds");
             require(usersTotalBalance >= amount, "[MoneyBox]: insufficient funds in the smart contract");
             userInfo.balance -= amount;
             usersTotalBalance -= amount;
         } else {
-            depositToken.safeTransferFrom(user, address(this), amount);
+            depositToken.safeTransferFrom(
+                depositType == DepositType.Bitacora ? address(_bitacoraImpl) : user,
+                address(this), amount);
             totalBalance += amount;
         }
         userInfo.depositsCount++;
@@ -181,11 +183,21 @@ contract MoneyBox is CommonBasic {
     }
 
     function depositFounds(uint8 categoryId, uint amount) external onlyRegisteredUsers onlyUnlocked {
-        _deposit(msg.sender, categoryId, amount, false);
+        _deposit(msg.sender, categoryId, amount, DepositType.User);
+    }
+
+    function depositFoundsFromBitacora(address user, uint8 categoryId, uint amount) external override onlyUnlocked {
+        require(msg.sender == address(_bitacoraImpl), "Only Bitacora");
+        _deposit(
+            user,
+            categoryId,
+            !isUserActive(user) ? amount - _registration(user, address(_bitacoraImpl)) : amount,
+            DepositType.Bitacora
+        );
     }
 
     function depositFoundsFromBalance(uint8 categoryId, uint amount) external onlyRegisteredUsers onlyUnlocked {
-        _deposit(msg.sender, categoryId, amount, true);
+        _deposit(msg.sender, categoryId, amount, DepositType.Balance);
     }
 
     function retireFounds(uint amount) external onlyRegisteredUsers onlyUnlocked {
