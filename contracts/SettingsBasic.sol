@@ -6,6 +6,7 @@ contract SettingsBasic is CommonBasic {
     event AdminAdded(address indexed _emitterAdmin, address indexed _addedAdmin, uint8 _adminId);
     event AdminActivated(address indexed _emitterAdmin, address indexed _addedAdmin, uint8 _adminId);
     event AdminDisabled(address indexed _emitterAdmin, address indexed _deletedAdmin, uint8 _adminId);
+    event CommonSettingsUpdated(address indexed admin, uint8 minAllowedAdmins, uint8 maxAllowedAdmins, uint maxAmountToWithdraw, uint minAmountToWithdraw);
     
     struct Admin {
         uint8 id;
@@ -113,6 +114,7 @@ contract SettingsBasic is CommonBasic {
         _commonSettings.maxAllowedAdmins = maxAllowedAdmins;
         _commonSettings.minAmountToWithdraw = minAmountToWithdraw;
         _commonSettings.maxAmountToWithdraw = maxAmountToWithdraw;
+        emit CommonSettingsUpdated(msg.sender, minAllowedAdmins, maxAllowedAdmins, maxAmountToWithdraw, minAmountToWithdraw);
     }
 
     function getCommonSettings() external view restricted returns(uint8, uint8, uint, uint) {
