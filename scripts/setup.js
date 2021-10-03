@@ -7,14 +7,14 @@ var BitacoraBasic = require('../build/contracts/test/BitacoraBasic')
 console.log('The app has been configured.')
 // console.log('Run "npm run dev" to start it.')
 
-const tronboxJs = require('../tronbox').networks.nile
+const tronboxJs = require('../tronbox').networks.shasta
 
 const deployedInfo = {
   contractAddress: address,
   constractAddress: {
-    BitacoraBasic: BitacoraBasic.networks['3'].address,
-    MoneyBoxSettings: MoneyBoxSettings.networks['3'].address,
-    MoneyBox: MoneyBox.networks['3'].address,
+    BitacoraBasic: BitacoraBasic.networks[tronboxJs.network_id].address,
+    MoneyBoxSettings: MoneyBoxSettings.networks[tronboxJs.network_id].address,
+    MoneyBox: MoneyBox.networks[tronboxJs.network_id].address,
   },
   privateKey: tronboxJs.privateKey,
   fullHost: tronboxJs.fullHost
