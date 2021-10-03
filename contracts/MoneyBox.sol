@@ -2,18 +2,19 @@ pragma solidity ^0.6.2;
 
 import "./CommonBasic.sol";
 import "./SafeTRC20.sol";
+import "./IMoneyBoxSettings.sol";
 
 interface IBitacoraBasic {
     function isUserExists(address user) external view returns (bool);
     function getUserInfo(address user) external view returns (uint, address, bool);
 }
 
-interface IMoneyBoxSettings {
-    function getCategoryInfo(uint8 categoryId) external view returns(bytes4, uint16, uint16, uint, uint);
-    function getLogicSettings() external view returns(uint, uint, uint8);
-    function getBonusDistribution(uint8 id) external view returns(uint64, uint);
-    function isAdmin(address user) external view returns(bool);
-}
+// interface IMoneyBoxSettings {
+//     function getCategoryInfo(uint8 categoryId) external view returns(bytes4, uint16, uint16, uint, uint);
+//     function getLogicSettings() external view returns(uint, uint, uint8);
+//     function getBonusDistribution(uint8 id) external view returns(uint64, uint);
+//     function isAdmin(address user) external view returns(bool);
+// }
 
 contract MoneyBox is CommonBasic {
     using SafeTRC20 for ITRC20;
@@ -149,15 +150,16 @@ contract MoneyBox is CommonBasic {
     }
 
     function _deposit(address user, uint8 categoryId, uint amount, bool fromBalance) internal {
-        (, uint16 catPercentage, uint16 catCountDays, uint catMinDeposit, uint catMaxDeposit) = _settings.getCategoryInfo(categoryId);
-        
-        User storage userInfo = users[user];
+        (, uint16 catPercentage, uint16 catCountDays, uint catMinDeposit, uint catMaxDeposit, bool active) = _settings.getCategoryInfo(categoryId);
+        require(active, "[MoneyBox]: The category is inactive");
         require(
             amount >= catMinDeposit
             && amount <= catMaxDeposit
-            && amount % 10e18 == 0,
+            && amount % 10e6 == 0,
             "[MoneyBox]: Invalid deposit amount"
         );
+        User storage userInfo = users[user];
+        
         if(fromBalance) {
             require(userInfo.balance >= amount, "[MoneyBox]: Insufficient funds");
             require(usersTotalBalance >= amount, "[MoneyBox]: insufficient funds in the smart contract");
@@ -287,6 +289,7 @@ contract MoneyBox is CommonBasic {
         usersTotalBalance += deposit.withdrawAmount;
         userInfo.balance += deposit.withdrawAmount;
         emit DepositPayed(msg.sender, user, depositId, deposit.withdrawAmount);
+        // deposit.active = false;
         delete userInfo.deposits[depositId];
     }
 

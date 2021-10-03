@@ -10,4 +10,6 @@ interface ISettingsBasic is ICommonBasic {
     function getAllAdmins() external view returns(address[] memory);
     function getActiveAdmins() external view returns(address[] memory);
     function isAdmin(address user) external view returns(bool);
+    function getCommonSettings() external view returns(uint8, uint8, uint, uint);
+    function setCommonSettings(uint8 minAllowedAdmins, uint8 maxAllowedAdmins, uint maxAmountToWithdraw, uint minAmountToWithdraw) external;
 }
