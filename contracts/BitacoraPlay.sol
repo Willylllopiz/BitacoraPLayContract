@@ -6,7 +6,7 @@ import "./ISettingsBasic.sol";
 import "./IBitacoraPlay.sol";
 
 contract BitacoraPlay is BitacoraPlayBasic, IBitacoraPlay {
-    event SignUpEvent(address indexed _newUser, uint indexed _userId, address indexed _sponsor, uint _sponsorId);
+    event SignUpEvent(string externalId, address indexed _newUser, uint indexed _userId, address indexed _sponsor, uint _sponsorId);
     /* 
         BonusType: 0 => DirectPayments,
         BonusType: 1 => ReferredRangeBonus,
@@ -19,15 +19,14 @@ contract BitacoraPlay is BitacoraPlayBasic, IBitacoraPlay {
     event BonusAvailableToCollectEvent(address indexed _user, uint _userId, uint8 indexed _range, uint8 indexed _bonusType, uint _amount);
     event AccumulatedAcademicExcellenceBonus(uint _amount);
 
-    event NewUserChildEvent(address indexed _user, address indexed _sponsor);
     event AvailableBalanceForMoneyBox(address indexed _user, uint _amount);
     event AvailableAdministrativeBalance(uint _amonnt);
     event AvailableBalanceForUser(address indexed _user, uint _amount); 
     event AvailableReferralDirectPayments(address indexed _user, uint _amount);  
     event AvailableAdministrativeBalanceForUserBonus(address indexed _user, uint _amount);
     event CareerPlan_Royalties(address indexed _user, uint amount, uint8 _userLevel);    
-    event ProsumerPlan_NewProsumer(address indexed _user, uint8 _prosumerLevel);    
-    event ProsumerPlan_SetProsumerDegreeByAdmin(address indexed _admin, address indexed _user, uint8 _level);
+    event NewUserInProsumerPlan(address indexed _user, uint8 _prosumerLevel);
+    event ChangedProsumerDegreeByAdmin(address indexed _admin, address indexed _user, uint8 _level);
 
     event Course_NewCourse(string indexed _courseId);
     event UserBoughtCourse(string indexed _courseId, address indexed _user, uint _price);
@@ -49,7 +48,7 @@ contract BitacoraPlay is BitacoraPlayBasic, IBitacoraPlay {
         PendingPayments pendingPayments;
         AcademicInfo academicInfo;
         ProsumerInfo prosumerInfo;
-        uint256 activationDate;
+        uint256 expirationTime;
     }
 
     struct BasicPlan {        
@@ -128,7 +127,6 @@ contract BitacoraPlay is BitacoraPlayBasic, IBitacoraPlay {
 
     mapping(string => Course) public courses;
 
-    address externalAddress;
     address rootAddress;
 
     uint public lastUserId = 2; 
@@ -154,12 +152,11 @@ contract BitacoraPlay is BitacoraPlayBasic, IBitacoraPlay {
     mapping(uint8 => ProsumerDegreeConfig) internal degreeConfig;
     mapping(uint8 => mapping(uint8 => uint)) viewsCycleConfig;
 
-    constructor(address _externalAddress, address _rootAddress) public {
+    constructor(address _rootAddress) public {
         globalBalance = 0;
         administrativeBalance = 0;   
         accumulatedAcademicExcellenceBonus = 0;
 
-        externalAddress = _externalAddress;
         rootAddress = _rootAddress;
         users[rootAddress].id = 1;
         users[rootAddress].sponsor = address(0);
@@ -236,45 +233,45 @@ contract BitacoraPlay is BitacoraPlayBasic, IBitacoraPlay {
         careerPlanRoyaltiesConfig[0] = 1.2e6;
 
         careerRangeCountConfig = 4;
-        careerRangeConfig [1] = BasicRangeConfig({
+        careerRangeConfig[1] = BasicRangeConfig({
             assetsDirect: 30, 
             directPayment: 25e6,
             assetsIndirect: 0, 
-            indirectPayment: 0,
+            indirectPayment: 3e6,
             moneyBox: 0,
             adminBonus: 750e6,
             himSelf: 0,
             surplus:0
         });
-        careerRangeConfig [2] = BasicRangeConfig({
-            assetsDirect: 70, 
+        careerRangeConfig[2] = BasicRangeConfig({
+            assetsDirect: 70,
             directPayment: 25e6,
             assetsIndirect: 0, 
-            indirectPayment: 0,
+            indirectPayment: 3e6,
             moneyBox: 0,
             adminBonus: 1750e6,
             himSelf: 0,  
             surplus:0
         });
-        careerRangeConfig [3] = BasicRangeConfig({
-            assetsDirect: 0,
+        careerRangeConfig[3] = BasicRangeConfig({
+            assetsDirect: 200,
             directPayment: 0,
             assetsIndirect: 1000, 
-            indirectPayment: 1e6,
+            indirectPayment: 3e6,
             moneyBox: 1800e6, 
             adminBonus: 0,
             himSelf: 0,
             surplus:0
         });
         careerRangeConfig [4] = BasicRangeConfig({
-            assetsDirect: 0, 
+            assetsDirect: 200,
             directPayment: 0,
-            assetsIndirect: 5000, 
+            assetsIndirect: 4000,
             indirectPayment: 2e6,
             moneyBox: 7200e6,  
             adminBonus: 0,
             himSelf: 0,
-            surplus:0
+            surplus:2800
         });
 
         prosumerRangeCountConfig = 3;
@@ -349,13 +346,6 @@ contract BitacoraPlay is BitacoraPlayBasic, IBitacoraPlay {
         _locked = false;
     }
 
-    fallback() external {
-        if(msg.data.length == 0) {
-            return registration(rootAddress);
-        }
-        registration(bytesToAddress(msg.data));
-    }
-
     function bytesToAddress(bytes memory bys) private pure returns (address addr) {
         assembly {
             addr := mload(add(bys, 20))
@@ -414,15 +404,15 @@ contract BitacoraPlay is BitacoraPlayBasic, IBitacoraPlay {
 
     function isActivatedMembership(address _user) public view override returns(bool) {
         require(isUserExists(_user), "BitacoraPlay: user is not exists. Register first.");
-        return block.timestamp <=  users[_user].activationDate;
+        return block.timestamp <= users[_user].expirationTime;
     }
 
-    function signUp(address _sponsorAddress) external returns(string memory){        
-        registration(_sponsorAddress);        
+    function signUp(address _sponsorAddress, string _externalId) external returns(string memory){
+        registration(_sponsorAddress, _externalId);
         return "registration successful!!";
     }
 
-    function registration(address sponsorAddress) private {
+    function registration(address sponsorAddress, string externalId) private {
         require(!isUserExists(msg.sender), "user exists");
         require(isUserExists(sponsorAddress), "sponsor not exists");
 
@@ -436,40 +426,50 @@ contract BitacoraPlay is BitacoraPlayBasic, IBitacoraPlay {
         idToAddress[lastUserId] = msg.sender;
         users[msg.sender].id = lastUserId;
         users[msg.sender].sponsor = sponsorAddress;
-        users[msg.sender].referredPlan.range = 1;//revisar si empieza en rookie o junior  segun el back debe de ser junior!!!! 
+        users[msg.sender].referredPlan.range = 1;
         lastUserId++;
 
         payMonth();
-        emit NewUserChildEvent(msg.sender, sponsorAddress);
-        emit SignUpEvent(msg.sender, users[msg.sender].id, sponsorAddress, users[sponsorAddress].id);
+        emit SignUpEvent(externalId, msg.sender, users[msg.sender].id, sponsorAddress, users[sponsorAddress].id);
     }   
 
     function payMonthly() external {
-        require( !isActivatedMembership(msg.sender), "user already active this month.");
+        require(isUserExists(msg.sender), "BitacoraPlay: user is not exists. Register first.");
+        require(
+            !isActivatedMembership(msg.sender) || users[msg.sender].expirationTime - block.timestamp <= 8 days,
+            "user already active this month."
+        );
         payMonth();
     }
 
     function payMonth() private {
-        require(isUserExists(msg.sender), "BitacoraPlay: user is not exists. Register first.");
         depositToken.safeTransferFrom(msg.sender, address(this), referralPlanPrice);
         globalBalance += referralPlanPrice;
-        users[msg.sender].activationDate =  block.timestamp + 30 days;
+        User storage _userInfo = users[msg.sender];
+        userInfo.expirationTime = 30 days
+            + (block.timestamp < userInfo.expirationTime ? userInfo.expirationTime : block.timestamp);
 
-        User storage _sponsorInfo = users[users[msg.sender].sponsor];
-        _sponsorInfo.referredPlan.accumulatedDirectMembers ++;
+        User storage _sponsorInfo = users[userInfo.sponsor];
+        if(_sponsorInfo.id == 1) {
+            administrativeBalance += referredDistributionsPaymentsConfig.referralDirectPayment + referredDistributionsPaymentsConfig.admin;
+            emit AvailableAdministrativeBalance(referredDistributionsPaymentsConfig.referralDirectPayment + referredDistributionsPaymentsConfig.admin);
+            return;
+        }
+        _sponsorInfo.referredPlan.accumulatedDirectMembers++;
         _sponsorInfo.balance += referredRangeConfig[_sponsorInfo.referredPlan.range].directPayment;
-        _sponsorInfo.pendingPayments.referralDirectPayments += referredDistributionsPaymentsConfig.referralDirectPayment; 
-        emit AvailableReferralDirectPayments(users[msg.sender].sponsor, referredDistributionsPaymentsConfig.referralDirectPayment);    
-        _sponsorInfo.academicInfo.accumulatedDirectToSeeCourse ++;
+        _sponsorInfo.pendingPayments.referralDirectPayments += referredDistributionsPaymentsConfig.referralDirectPayment;
+        emit AvailableReferralDirectPayments(userInfo.sponsor, referredDistributionsPaymentsConfig.referralDirectPayment);
+        _sponsorInfo.academicInfo.accumulatedDirectToSeeCourse++;
         _sponsorInfo.academicInfo.accumulatedCoursePay += referredDistributionsPaymentsConfig.coursePaymentReferral;
-
-        accumulatedAcademicExcellenceBonus += referredDistributionsPaymentsConfig.academicExcellenceBonus;
-       
-        updateMembers(REFERRED_ACTIVE_LEVEL, users[msg.sender].sponsor, 1);
-        updateCareerPlanRoyalties(0, users[msg.sender].sponsor);
 
         administrativeBalance += referredDistributionsPaymentsConfig.admin;
         emit AvailableAdministrativeBalance(referredDistributionsPaymentsConfig.admin);
+
+
+        accumulatedAcademicExcellenceBonus += referredDistributionsPaymentsConfig.academicExcellenceBonus;
+       
+        updateMembers(REFERRED_ACTIVE_LEVEL, userInfo.sponsor, 1);
+        updateCareerPlanRoyalties(0, userInfo.sponsor);
     }     
 
     function updateMembers(uint _level, address _userAddress, uint8 _plan) internal {
@@ -487,7 +487,7 @@ contract BitacoraPlay is BitacoraPlayBasic, IBitacoraPlay {
         }
         _basicPlan.accumulatedIndirectMembers++;
 
-        if(_basicPlan.range <= _rangeCountConfig){
+        if(_basicPlan.range <= _rangeCountConfig) {
             users[_userAddress].balance += _config.indirectPayment;                                    
             if (
                 _basicPlan.accumulatedIndirectMembers >= _config.assetsIndirect
@@ -503,13 +503,13 @@ contract BitacoraPlay is BitacoraPlayBasic, IBitacoraPlay {
                     _plan                       
                 );
                 // Updating Range 
-                _basicPlan.range ++;
+                _basicPlan.range++;
                 _basicPlan.accumulatedIndirectMembers -= _config.assetsIndirect;
                 _basicPlan.accumulatedDirectMembers -= _config.assetsDirect;
-                users[_userAddress].balance -= _config.moneyBox + _config.adminBonus + _config.himSelf + _config.surplus;
+                users[_userAddress].balance -= (_config.moneyBox + _config.adminBonus + _config.himSelf + _config.surplus);
             }                   
         }
-        else{
+        else {
             administrativeBalance += _config.indirectPayment;
             emit AvailableAdministrativeBalance(_config.indirectPayment);
         }
@@ -519,19 +519,25 @@ contract BitacoraPlay is BitacoraPlayBasic, IBitacoraPlay {
 // Start Region Career
     function payCareerPlanActivation() private {
         require(isUserExists(msg.sender), "BitacoraPlay: user is not exists. Register first.");
+        User storage userInfo = users[msg.sender];
         require(isActivatedMembership(msg.sender), "BitacoraPlay: has not paid monthly payment");
-        require(!users[msg.sender].careerIsActive, "Career: user is already active in career plan");
+        require(!userInfo.careerIsActive, "Career: user is already active in career plan");
         depositToken.safeTransferFrom(msg.sender, address(this), careerPlanPrice);
         globalBalance += careerPlanPrice;
 
-        users[msg.sender].careerIsActive = true;
-        users[msg.sender].careerPlan.range = 1;
-        users[msg.sender].academicInfo.cycle = 1;
+        userInfo.careerIsActive = true;
+        userInfo.careerPlan.range = 1;
+        userInfo.academicInfo.cycle = 1;
 
-        User storage _sponsor = users[users[msg.sender].sponsor];
-        _sponsor.careerPlan.accumulatedDirectMembers ++;
-        _sponsor.balance += careerRangeConfig[_sponsor.careerPlan.range].directPayment;
-        updateMembers(CAREER_ACTIVE_LEVEL, users[msg.sender].sponsor, 2);
+        User storage _sponsor = users[userInfo.sponsor];
+        if(_sponsor.id > 1 && _sponsor.careerIsActive) {
+            _sponsor.careerPlan.accumulatedDirectMembers++;
+            _sponsor.balance += careerRangeConfig[_sponsor.careerPlan.range].directPayment;
+            updateMembers(CAREER_ACTIVE_LEVEL, userInfo.sponsor, 2);
+        } else {
+
+        }
+
         
         administrativeBalance +=10e6;
         emit AvailableAdministrativeBalance(10e6);
@@ -574,30 +580,35 @@ contract BitacoraPlay is BitacoraPlayBasic, IBitacoraPlay {
 
 // Start Region Prosumer
     function payProsumerPlan() external {
-        require( isActivatedMembership(msg.sender), "Prosumer: user is not active this month.");
-        require( users[msg.sender].careerIsActive , "Prosumer: user is not active in Career Plan"); 
-        require(!users[msg.sender].prosumerIsActive, "Prosumer: user is already active in Prosumer Plan");
-        users[msg.sender].prosumerIsActive = true;
-        users[msg.sender].prosumerInfo.degree = 1;
+        require(isActivatedMembership(msg.sender), "Prosumer: user is not active this month.");
+        User storage userInfo = users[msg.sender];
+        require(userInfo.careerIsActive , "Prosumer: user is not active in Career Plan");
+        require(!userInfo.prosumerIsActive, "Prosumer: user is already active in Prosumer Plan");
+        userInfo.prosumerIsActive = true;
+        userInfo.prosumerInfo.degree = 1;
 
-        users[msg.sender].prosumerPlan.range = 1;
-        users[msg.sender].balance += prosumerRangeConfig[users[msg.sender].prosumerPlan.range].directPayment;
-        updateMembers(PROSUMER_ACTIVE_LEVEL, users[msg.sender].sponsor, 3);
+        userInfo.prosumerPlan.range = 1;
+        if(userInfo.sponsor < rootAddress) {
+            administrativeBalance += prosumerRangeConfig[userInfo.prosumerPlan.range].directPayment;
+        } else {
+            users[userInfo.sponsor].balance += prosumerRangeConfig[userInfo.prosumerPlan.range].directPayment;
+        }
+        updateMembers(PROSUMER_ACTIVE_LEVEL, userInfo.sponsor, 3);
 
         depositToken.safeTransferFrom(msg.sender, address(this), prosumerPlanPrice);
         globalBalance += prosumerPlanPrice;
         
-        administrativeBalance += 10e6; //TODO: REsto que queda del pago de activacion de un prosumer... meter en una variable
-        emit AvailableAdministrativeBalance(10e6);//TODO: REsto que queda del pago de activacion de un prosumer... meter en una variable
+        administrativeBalance += 10e6;
+        emit AvailableAdministrativeBalance(10e6);
 
-        emit ProsumerPlan_NewProsumer(msg.sender, 1);
+        emit NewUserInProsumerPlan(msg.sender, 1);
     }
 
     function setProsumerDegreeByAdmin(address _userAddress, uint8 _degree) external restricted {
         require(_degree > 0, 'Prosumer: level no valid!!');
         users[msg.sender].prosumerIsActive = true;
         users[_userAddress].prosumerInfo.degree = _degree;
-        emit ProsumerPlan_SetProsumerDegreeByAdmin(msg.sender, _userAddress, _degree);
+        emit ChangedProsumerDegreeByAdmin(msg.sender, _userAddress, _degree);
     }
 // End Region Prosumer
 

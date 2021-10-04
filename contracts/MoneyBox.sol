@@ -92,8 +92,7 @@ contract MoneyBox is CommonBasic {
         _bitacoraImpl = bitacoraImpl;
         _locked = false;
     }
-    
-    //todo: ++++++
+
     function registration() external onlyUnlocked {
         _registration(msg.sender, msg.sender);
     }
