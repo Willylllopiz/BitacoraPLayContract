@@ -82,7 +82,7 @@ contract MoneyBoxSettings is SettingsBasic {
         _locked = false;
     }
 
-    function addCategory(bytes4 name, uint16 percentage, uint16 countDays, uint minDeposit, uint maxDeposit) external restricted {
+    function addCategory(bytes4 name, uint16 percentage, uint16 countDays, uint minDeposit, uint maxDeposit) external restricted onlyUnlocked {
         // require(getCategoryOrder(key) == 0, "MoneyBoxSettings: Category already exists");
         _categoriesCount++;
         _categoryConfig[_categoriesCount] = CategoryConfig({
@@ -96,13 +96,13 @@ contract MoneyBoxSettings is SettingsBasic {
         emit CategoryConfigAdded(msg.sender, _categoriesCount, name, percentage, countDays, minDeposit, maxDeposit);
     }
 
-    function changeCategoryStatus(uint8 categoryId) external restricted {
+    function changeCategoryStatus(uint8 categoryId) external restricted onlyUnlocked {
         require(0 < categoryId && categoryId <= _categoriesCount, "MoneyBoxSettings: Category does not exist");
         _categoryConfig[categoryId].active = !_categoryConfig[categoryId].active;
         emit CategoryConfigUpdatedStatus(msg.sender, categoryId, _categoryConfig[categoryId].active);
     }
 
-    function updateCategory(uint8 categoryId, bytes4 name, uint16 percentage, uint16 countDays, uint minDeposit, uint maxDeposit) external restricted {
+    function updateCategory(uint8 categoryId, bytes4 name, uint16 percentage, uint16 countDays, uint minDeposit, uint maxDeposit) external restricted onlyUnlocked {
         require(0 < categoryId && categoryId <= _categoriesCount, "MoneyBoxSettings: Category does not exist");
         require(_categoryConfig[categoryId].active, "MoneyBoxSettings: The Category is inactive");
         _categoryConfig[categoryId].name = name;
@@ -129,7 +129,7 @@ contract MoneyBoxSettings is SettingsBasic {
         );
     }
 
-    function addBonusDistribution(uint64 accumulateNecessary, uint amount) external {
+    function addBonusDistribution(uint64 accumulateNecessary, uint amount) external restricted onlyUnlocked {
         require(bonusDistribution[bonusesCount].accumulateNecessary < accumulateNecessary);
         require(accumulateNecessary > 0 && amount > 0);
         bonusDistribution[++bonusesCount] = BonusDistribution({
@@ -138,7 +138,7 @@ contract MoneyBoxSettings is SettingsBasic {
         emit BonusDistributionAdded(msg.sender, bonusesCount, accumulateNecessary, amount);
     }
 
-    function changeBonusDistribution(uint8 bonusDistributionId, uint64 accumulateNecessary, uint amount) external {
+    function changeBonusDistribution(uint8 bonusDistributionId, uint64 accumulateNecessary, uint amount) external restricted onlyUnlocked {
         require(bonusDistributionId > 0 && bonusDistributionId <= bonusesCount);
         require(accumulateNecessary > 0 && amount > 0);
         bonusDistribution[bonusDistributionId] = BonusDistribution({
@@ -147,7 +147,7 @@ contract MoneyBoxSettings is SettingsBasic {
         emit BonusDistributionUpdated(msg.sender, bonusDistributionId, accumulateNecessary, amount);
     }
 
-    function changeRegisterSettings(uint newRegisterPrice, uint newAmountForBonus) external {
+    function changeRegisterSettings(uint newRegisterPrice, uint newAmountForBonus) external restricted onlyUnlocked {
         require(newAmountForBonus <= newRegisterPrice, "[MoneyBoxSettings]: newAmountForBonus <= newRegisterPrice");
         registerPrice = newRegisterPrice;
         amountForBonus = newAmountForBonus;
