@@ -1,36 +1,51 @@
-var ITRC20 = artifacts.require("ITRC20");
-var CommonBasic = artifacts.require("CommonBasic");
-var SettingsBasic = artifacts.require("SettingsBasic");
 var MoneyBoxSettings = artifacts.require("MoneyBoxSettings");
 var SafeMath = artifacts.require("SafeMath");
 var SafeAddress = artifacts.require("SafeAddress");
 var SafeTRC20 = artifacts.require("SafeTRC20");
-var ICommonBasic = artifacts.require("ICommonBasic");
-var ISettingsBasic = artifacts.require("ISettingsBasic");
-var IMoneyBoxSettings = artifacts.require("IMoneyBoxSettings");
 var MoneyBox = artifacts.require("MoneyBox");
-var TronWeb = require('tronweb');
-var config = require('../tronbox');
+var BitacoraPlay = artifacts.require("BitacoraPlay");
 
+var TronWeb = require('tronweb');
+var tronBoxInfo = require('../tronbox');
+var config = tronBoxInfo.networks.shasta;
 var tronWeb = new TronWeb({
-    fullHost: config.networks.shasta.fullHost,
+    fullHost: config.fullHost,
 });
 
-module.exports = async (deployer) => {
+async function saveContractsInfo(bitacora, moneyBox, moneyBoxSettings) {
+    var fs = require('fs');
+    var path = require('path');
 
-    //region Money Box Settings
-    console.log('Deploying ITRC20');
-    await deployer.deploy(ITRC20);
-    console.log('Linking ITRC20 to CommonBasic');
-    await deployer.link(ITRC20, CommonBasic);
-    console.log('Deploying CommonBasic');
-    await deployer.deploy(CommonBasic);
-    console.log('Linking CommonBasic to SettingsBasic');
-    await deployer.link(CommonBasic, SettingsBasic);
-    console.log('Deploying SettingsBasic');
-    await deployer.deploy(SettingsBasic);
-    console.log('Linking SettingsBasic to MoneyBoxSettings');
-    await deployer.link(SettingsBasic, MoneyBoxSettings);
+    const fileExists = (file) => {
+        return new Promise((resolve) => {
+            fs.access(file, fs.constants.F_OK, (err) => {
+                err ? resolve(false) : resolve(true)
+            });
+        })
+    }
+
+    var deployedInfo = (await fileExists(path.resolve(__dirname, '../build/deployed-info.js')))
+        ? require('../build/deployed-info')
+        : {};
+
+    deployedInfo[config.network_id] = {
+        contractAddress: {
+            BitacoraPlay: bitacora,
+            MoneyBoxSettings: moneyBoxSettings,
+            MoneyBox: moneyBox,
+        },
+        privateKey: config.privateKey,
+        fullHost: config.fullHost
+    }
+
+    await fs.writeFileSync(
+        path.resolve(__dirname, '../build/deployed-info.js'),
+        `module.exports = ${JSON.stringify(deployedInfo, null, 2)}`
+    );
+
+}
+
+module.exports = async (deployer) => {
     console.log('Deploying MoneyBoxSettings');
     await deployer.deploy(MoneyBoxSettings);
 
@@ -42,12 +57,11 @@ module.exports = async (deployer) => {
 
     console.log('Initializing MoneyBoxSettings')
     await MoneyBoxSettingsContract.call('initialize', [process.env.USDT_IMPL]);
+    console.log('Initialized MoneyBoxSettings   !!!!!!!!')
 
     //endregion
 
     //region Money Box
-    console.log('Linking CommonBasic to MoneyBox');
-    await deployer.link(CommonBasic, MoneyBox);
 
     console.log('Deploying SafeMath');
     await deployer.deploy(SafeMath);
@@ -57,27 +71,13 @@ module.exports = async (deployer) => {
     await deployer.deploy(SafeAddress);
     console.log('Linking SafeAddress to SafeTRC20');
     await deployer.link(SafeAddress, SafeTRC20);
-    console.log('Linking ITRC20 to SafeTRC20');
-    await deployer.link(ITRC20, SafeTRC20);
     console.log('Deploying SafeTRC20');
     await deployer.deploy(SafeTRC20);
     console.log('Linking SafeTRC20 to MoneyBox');
     await deployer.link(SafeTRC20, MoneyBox);
 
-    console.log('Deploying ICommonBasic');
-    await deployer.deploy(ICommonBasic);
-    console.log('Linking ICommonBasic to ISettingsBasic');
-    await deployer.link(ICommonBasic, ISettingsBasic);
-    console.log('Deploying ISettingsBasic');
-    await deployer.deploy(ISettingsBasic);
-    console.log('Linking ISettingsBasic to IMoneyBoxSettings');
-    await deployer.link(ISettingsBasic, IMoneyBoxSettings);
-    console.log('Linking ITRC20 to IMoneyBoxSettings');
-    await deployer.link(ITRC20, IMoneyBoxSettings);
-    console.log('Deploying IMoneyBoxSettings');
-    await deployer.deploy(IMoneyBoxSettings);
-    console.log('Linking IMoneyBoxSettings to MoneyBox');
-    await deployer.link(IMoneyBoxSettings, MoneyBox);
+    console.log('Deploying MoneyBox');
+    await deployer.deploy(MoneyBox);
 
     console.log('Getting Deployed MoneyBox')
     const MoneyBoxContract = await MoneyBox.deployed();
@@ -85,17 +85,28 @@ module.exports = async (deployer) => {
     console.debug('MoneyBox address ++++++++++++++++ ', moneyBoxAddress)
 
     console.log('Initializing MoneyBox')
+    // todo: enlazar bitacora con moneyBox
     await MoneyBoxContract.call('initialize', [process.env.USDT_IMPL, moneyBoxSettingsAddress, process.env.BITACORA_TEST_IMPL]);
+    console.log('Initialized MoneyBox     !!!!!!')
     //endregion
 
-    //
-    // await deployer.deploy(SmartLotto, 'TTSqi5jVfh2N6x9Voi4PsQiYUjUgRvQkhs', CareerPlan.address, Lotto.address, 'TEtK2n8SP7it7J3KeU7dFHZcAjGrSz3o3c');
-    // const CareerPlanContract = await CareerPlan.deployed();
-    // const smartLottoAddress = await tronWeb.address.fromHex(SmartLotto.address);
-    // console.log('address smart lotto{+++++}', smartLottoAddress)
-    // await CareerPlanContract.call('setSmartLottoAddress', [smartLottoAddress]);
-    // // await CareerPlanContract.setSmartLottoAddress(smartLottoAddress);
-    // const LottoContract = await Lotto.deployed();
-    // await LottoContract.call('setSmartLottoAddress', [smartLottoAddress]);
-    // // await LottoContract.setSmartLottoAddress(smartLottoAddress);
+
+    //region BitacoraPlayBasic
+
+    console.log('Deploying BitacoraPlay');
+    await deployer.deploy(BitacoraPlay, process.env.ROOT_ADMIN_ADDRESS);
+
+    console.log('Getting Deployed BitacoraPlay')
+    const BitacoraPlayContract = await BitacoraPlay.deployed();
+    const bitacoraPlayAddress = await tronWeb.address.fromHex(BitacoraPlay.address);
+    console.debug('BitacoraPlay address ++++++++++++++++ ', bitacoraPlayAddress)
+
+    console.log('Initializing BitacoraPlay')
+    await BitacoraPlayContract.call('initialize', [process.env.USDT_IMPL, moneyBoxAddress, moneyBoxSettingsAddress]);
+    console.log('BitacoraPlay initialized   !!!!!!!!')
+    //endregion
+
+    console.debug('\n\n[SAVE CONTRACTS ADDRESS] starting .... \n');
+    saveContractsInfo(bitacoraPlayAddress, moneyBoxAddress, moneyBoxSettingsAddress);
+    console.debug('[SAVE CONTRACTS ADDRESS] finished .... \n');
 };
