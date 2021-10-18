@@ -7,6 +7,7 @@ import "./IBitacoraPlay.sol";
 
 contract BitacoraPlay is BitacoraPlayBasic, IBitacoraPlay {
     event SignUpEvent(string externalId, address indexed _newUser, uint indexed _userId, address indexed _sponsor, uint _sponsorId);
+    event CreateUserByAdminEvent(string externalId, address indexed _newUser, uint indexed _userId, address indexed _sponsor, uint _sponsorId);
     /* 
         BonusType: 0 => DirectPayments,
         BonusType: 1 => ReferredRangeBonus,
@@ -33,6 +34,7 @@ contract BitacoraPlay is BitacoraPlayBasic, IBitacoraPlay {
     event UserBoughtDirectlyCourse(string indexed _courseId, address indexed _user, uint _amountUser, uint _amountProsumer);
     event UserCycleIncresed(address indexed _user, uint cycle);
     event UserApprovedThisCourse(string indexed _courseId_courseId, address indexed _user);
+    event AddProsumerByAdminEvent(string externalId, address indexed _newUser, uint indexed _userId, address indexed _sponsor, uint _sponsorId, uint8 _degree);
 
     struct User {
         uint id;
@@ -412,11 +414,32 @@ contract BitacoraPlay is BitacoraPlayBasic, IBitacoraPlay {
     function isActivatedMembership(address _user) public view override returns(bool) {
         require(isUserExists(_user), "BitacoraPlay: user is not exists. Register first.");
         return block.timestamp <= users[_user].expirationTime;
-    }
+    }    
 
     function signUp(address _sponsorAddress, string calldata _externalId) external returns(string memory){
         registration(_sponsorAddress, _externalId);
         return "registration successful!!";
+    }
+
+    function createUserByAdmin(address _userAddress, address _sponsorAddress, string memory _externalId) public restricted{
+        require(!isUserExists(_userAddress), "user exists");
+        _sponsorAddress = isUserExists(_sponsorAddress) ? _sponsorAddress : rootAddress;
+       
+        uint32 size;
+        assembly {
+            size := extcodesize(_userAddress)
+        }
+        require(size == 0, "cannot be a contract");
+
+        idToAddress[lastUserId] = _userAddress;
+        users[_userAddress].id = lastUserId;
+        users[_userAddress].sponsor = _sponsorAddress;
+        users[_userAddress].referredPlan.range = 1;
+        lastUserId++;
+        users[_userAddress].expirationTime = 30 days
+            + (block.timestamp < users[_userAddress].expirationTime ? users[_userAddress].expirationTime : block.timestamp);
+            
+        emit CreateUserByAdminEvent(_externalId, _userAddress, users[_userAddress].id, _sponsorAddress, users[users[_userAddress].sponsor].id);
     }
 
     function registration(address sponsorAddress, string memory externalId) private {
@@ -615,6 +638,22 @@ contract BitacoraPlay is BitacoraPlayBasic, IBitacoraPlay {
         users[msg.sender].prosumerIsActive = true;
         users[_userAddress].prosumerInfo.degree = _degree;
         emit ChangedProsumerDegreeByAdmin(msg.sender, _userAddress, _degree);
+    }
+
+    function addProsumerByAdmin(address _userAddress, uint8 _degree, address _sponsorAddress, string calldata _externalId) external restricted {
+        require(!isUserExists(_userAddress), "user exists");
+
+        createUserByAdmin(_userAddress, _sponsorAddress, _externalId);
+
+        users[_userAddress].careerIsActive = true;
+        users[_userAddress].careerPlan.range = 1;
+        users[_userAddress].academicInfo.cycle = 1;
+
+        users[_userAddress].prosumerIsActive = true;
+        users[_userAddress].prosumerInfo.degree = _degree;
+        users[_userAddress].prosumerPlan.range = 1;
+
+        emit AddProsumerByAdminEvent(_externalId, _userAddress, users[_userAddress].id, _sponsorAddress, users[_sponsorAddress].id, _degree);
     }
 // End Region Prosumer
 
