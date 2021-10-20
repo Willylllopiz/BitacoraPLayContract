@@ -38,7 +38,7 @@ contract SettingsBasic is CommonBasic {
         _;
     }
 
-    function addAdmin(address user) external restricted returns(bool) {
+    function addAdmin(address user) external restricted onlyUnlocked returns(bool) {
         require(!isAdmin(user), 'SettingsBasic: The address is already admin');
         require(adminsActives < _commonSettings.maxAllowedAdmins, 'SettingsBasic: Validation max administrators allowed');
         adminsActives++;
@@ -59,7 +59,7 @@ contract SettingsBasic is CommonBasic {
         return true;
     }
 
-    function deleteAdmin(address user) external restricted returns(bool) {
+    function deleteAdmin(address user) external restricted onlyUnlocked returns(bool) {
         require(isAdmin(user), "SettingsBasic: The address isn't admin");
         require(adminsActives > _commonSettings.minAllowedAdmins, 'SettingsBasic: Validation min administrators allowed');
         adminsActives--;
@@ -69,7 +69,7 @@ contract SettingsBasic is CommonBasic {
         return true;
     }
 
-    function getAllAdmins() external view restricted returns(address[] memory) {
+    function getAllAdmins() external view restricted onlyUnlocked returns(address[] memory) {
         address[] memory result = new address[](nextAdminId-1);
         for(uint8 id = 1; id < nextAdminId;id++) {
             result[id-1] = idToAdmin[id];
@@ -77,7 +77,7 @@ contract SettingsBasic is CommonBasic {
         return result;
     }
 
-    function getActiveAdmins() external view restricted returns(address[] memory) {
+    function getActiveAdmins() external view restricted onlyUnlocked returns(address[] memory) {
         address[] memory result = new address[](adminsActives);
         uint8 activeId;
         for(uint8 id = 1; id < nextAdminId; id++) {
@@ -108,7 +108,7 @@ contract SettingsBasic is CommonBasic {
         });
     }
 
-    function setCommonSettings(uint8 minAllowedAdmins, uint8 maxAllowedAdmins, uint maxAmountToWithdraw, uint minAmountToWithdraw) external restricted {
+    function setCommonSettings(uint8 minAllowedAdmins, uint8 maxAllowedAdmins, uint maxAmountToWithdraw, uint minAmountToWithdraw) external restricted onlyUnlocked {
         require(minAllowedAdmins > 0 && minAmountToWithdraw > 0);
         _commonSettings.minAllowedAdmins = minAllowedAdmins;
         _commonSettings.maxAllowedAdmins = maxAllowedAdmins;

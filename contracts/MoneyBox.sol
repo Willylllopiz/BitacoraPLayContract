@@ -185,7 +185,7 @@ contract MoneyBox is CommonBasic {
         _deposit(msg.sender, categoryId, amount, DepositType.User);
     }
 
-    function depositFoundsFromBitacora(address user, uint8 categoryId, uint amount) external override onlyUnlocked {
+    function depositFoundsFromBitacora(address user, uint8 categoryId, uint amount) external onlyUnlocked {
         require(msg.sender == address(_bitacoraImpl), "Only Bitacora");
         _deposit(
             user,
