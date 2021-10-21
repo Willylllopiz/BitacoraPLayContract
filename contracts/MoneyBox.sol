@@ -15,7 +15,7 @@ contract MoneyBox is CommonBasic {
     event SignUp(address user);
     event UserEarnBonus(address sponsor, address user, uint8 bonusId, uint amount);
     event UserAccumulatePayment(address sponsor, address user);
-    event UserDeposit(address user, uint32 depositId, uint8 categoryId, uint depositAmount, uint withdrawAmount, uint16 percentage);
+    event UserDeposit(address user, uint32 depositId, uint8 categoryId, uint depositAmount, uint withdrawAmount, uint16 percentage, uint endTimestamp);
     event UserRetireFounds(address user, uint amount);
     event DepositPayed(address admin, address user, uint32 depositId, uint amount);
     event AdminRetireFounds(address admin, uint amount);
@@ -171,14 +171,16 @@ contract MoneyBox is CommonBasic {
             totalBalance += amount;
         }
         userInfo.depositsCount++;
+
+        // uint endTimestamp: block.timestamp + ((1 days) * catCountDays),  //todo: USE THIS
+        uint endTimestamp = block.timestamp + ((1 minutes) * catCountDays);
         userInfo.deposits[userInfo.depositsCount] = BoxDeposit({
-            // endTimestamp: block.timestamp + ((1 days) * catCountDays),  //todo: USE THIS
-            endTimestamp: block.timestamp + ((1 minutes) * catCountDays), // + (1000 * 60 * 60 * 24 * catCountDays),
+            endTimestamp: endTimestamp,
             withdrawAmount: _getPercentage(amount, catPercentage),
             active: true
         });        
         adminTotalBalance += amount;
-        emit UserDeposit(user, userInfo.depositsCount, categoryId, amount, _getPercentage(amount, catPercentage), catPercentage);
+        emit UserDeposit(user, userInfo.depositsCount, categoryId, amount, _getPercentage(amount, catPercentage), catPercentage, endTimestamp);
     }
 
     function depositFounds(uint8 categoryId, uint amount) external onlyRegisteredUsers onlyUnlocked {
@@ -316,9 +318,9 @@ contract MoneyBox is CommonBasic {
      * @param user The address of user.
      * @return (uint id, uint balance, uint32 depositsCount)
      */
-    function getUserInfo(address user) public view returns (uint, uint, uint32) {
+    function getUserInfo(address user) public view returns (uint, uint, uint32, uint8, uint, uint) {
         User storage userInfo = users[user];
-        return (userInfo.id, userInfo.balance, userInfo.depositsCount);
+        return (userInfo.id, userInfo.balance, userInfo.depositsCount, userInfo.bonus.lastBonus, userInfo.bonus.accumulatedAmount, userInfo.bonus.accumulatedPayments);
     }
 
     /**

@@ -12,39 +12,6 @@ var tronWeb = new TronWeb({
     fullHost: config.fullHost,
 });
 
-async function saveContractsInfo(bitacora, moneyBox, moneyBoxSettings) {
-    var fs = require('fs');
-    var path = require('path');
-
-    const fileExists = (file) => {
-        return new Promise((resolve) => {
-            fs.access(file, fs.constants.F_OK, (err) => {
-                err ? resolve(false) : resolve(true)
-            });
-        })
-    }
-
-    var deployedInfo = (await fileExists(path.resolve(__dirname, '../build/deployed-info.js')))
-        ? require('../build/deployed-info')
-        : {};
-
-    deployedInfo[config.network_id] = {
-        contractAddress: {
-            BitacoraPlay: bitacora,
-            MoneyBoxSettings: moneyBoxSettings,
-            MoneyBox: moneyBox,
-        },
-        privateKey: config.privateKey,
-        fullHost: config.fullHost
-    }
-
-    await fs.writeFileSync(
-        path.resolve(__dirname, '../build/deployed-info.js'),
-        `module.exports = ${JSON.stringify(deployedInfo, null, 2)}`
-    );
-
-}
-
 module.exports = async (deployer) => {
     console.log('Deploying MoneyBoxSettings');
     await deployer.deploy(MoneyBoxSettings);
@@ -106,7 +73,7 @@ module.exports = async (deployer) => {
     console.log('BitacoraPlay initialized   !!!!!!!!')
     //endregion
 
-    console.debug('\n\n[SAVE CONTRACTS ADDRESS] starting .... \n');
-    saveContractsInfo(bitacoraPlayAddress, moneyBoxAddress, moneyBoxSettingsAddress);
-    console.debug('[SAVE CONTRACTS ADDRESS] finished .... \n');
+    // console.debug('\n\n[SAVE CONTRACTS ADDRESS] starting .... \n');
+    // saveContractsInfo(bitacoraPlayAddress, moneyBoxAddress, moneyBoxSettingsAddress);
+    // console.debug('[SAVE CONTRACTS ADDRESS] finished .... \n');
 };
