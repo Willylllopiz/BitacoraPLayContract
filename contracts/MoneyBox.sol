@@ -108,8 +108,8 @@ contract MoneyBox is CommonBasic {
         users[user].id = userId;
         adminTotalBalance += (registerPrice - amountForBonus);
         totalBalance += registerPrice;
-        applyDistribution(user, sponsor, amountForBonus, bonusesCount);
         emit SignUp(user);
+        applyDistribution(user, sponsor, amountForBonus, bonusesCount);
         return registerPrice;
     }
 

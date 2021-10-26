@@ -6,7 +6,11 @@ import "./ISettingsBasic.sol";
 import "./IBitacoraPlay.sol";
 
 contract BitacoraPlay is BitacoraPlayBasic, IBitacoraPlay {
-    event SignUpEvent(string externalId, address indexed _newUser, uint indexed _userId, address indexed _sponsor, uint _sponsorId);
+    event SignUpEvent(string externalId, address indexed _newUser, uint indexed _userId, address indexed _sponsor, uint _sponsorId, uint _expireIn);
+    event UserPayedReferredPlan(address indexed _user, uint _expireIn);
+    event UserPayedCareerPlan(address indexed _user);
+    event UserPayedProsumerPlan(address indexed _user);
+    
     event CreateUserByAdminEvent(string externalId, address indexed _newUser, uint indexed _userId, address indexed _sponsor, uint _sponsorId);
     /* 
         BonusType: 0 => DirectPayments,
@@ -459,15 +463,19 @@ contract BitacoraPlay is BitacoraPlayBasic, IBitacoraPlay {
         users[msg.sender].referredPlan.range = 1;
         lastUserId++;
 
+        emit SignUpEvent(externalId, msg.sender, users[msg.sender].id, sponsorAddress, users[sponsorAddress].id, 30 days + block.timestamp);
         payMonth();
-        emit SignUpEvent(externalId, msg.sender, users[msg.sender].id, sponsorAddress, users[sponsorAddress].id);
-    }   
+    }
 
     function payMonthly() external {
         require(isUserExists(msg.sender), "BitacoraPlay: user is not exists. Register first.");
         require(
             !isActivatedMembership(msg.sender) || users[msg.sender].expirationTime - block.timestamp <= 8 days,
             "user already active this month."
+        );
+        emit UserPayedReferredPlan(
+            msg.sender,
+            30 days + (block.timestamp < users[msg.sender].expirationTime ? users[msg.sender].expirationTime : block.timestamp)
         );
         payMonth();
     }
@@ -547,7 +555,7 @@ contract BitacoraPlay is BitacoraPlayBasic, IBitacoraPlay {
     }
 
 // Start Region Career
-    function payCareerPlanActivation() private {
+    function payCareerPlanActivation() external {
         require(isUserExists(msg.sender), "Career: user is not exists. Register first.");
         User storage userInfo = users[msg.sender];
         require(isActivatedMembership(msg.sender), "Career: has not paid monthly payment");
@@ -558,7 +566,7 @@ contract BitacoraPlay is BitacoraPlayBasic, IBitacoraPlay {
         userInfo.careerIsActive = true;
         userInfo.careerPlan.range = 1;
         userInfo.academicInfo.cycle = 1;
-
+        emit UserPayedCareerPlan(msg.sender);
         User storage _sponsor = users[userInfo.sponsor];
         uint _administrativeBalance = careerPlanConfig.surplusPrice;
         if(_sponsor.id > 1 && _sponsor.careerIsActive) {
@@ -615,7 +623,7 @@ contract BitacoraPlay is BitacoraPlayBasic, IBitacoraPlay {
         require(!userInfo.prosumerIsActive, "Prosumer: user is already active in Prosumer Plan");
         userInfo.prosumerIsActive = true;
         userInfo.prosumerInfo.degree = 1;
-
+        emit UserPayedProsumerPlan(msg.sender);
         userInfo.prosumerPlan.range = 1;
         if(userInfo.sponsor < rootAddress) {
             administrativeBalance += prosumerRangeConfig[userInfo.prosumerPlan.range].directPayment;

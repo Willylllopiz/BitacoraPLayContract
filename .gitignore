@@ -4,6 +4,6 @@
 /bin/
 build/deployed-info.js
 node_modules
-build
+/build/
 .env
 

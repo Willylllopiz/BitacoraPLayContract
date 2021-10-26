@@ -51,10 +51,7 @@ module.exports = async (deployer) => {
     const moneyBoxAddress = await tronWeb.address.fromHex(MoneyBox.address);
     console.debug('MoneyBox address ++++++++++++++++ ', moneyBoxAddress)
 
-    console.log('Initializing MoneyBox')
-    // todo: enlazar bitacora con moneyBox
-    await MoneyBoxContract.call('initialize', [process.env.USDT_IMPL, moneyBoxSettingsAddress, process.env.BITACORA_TEST_IMPL]);
-    console.log('Initialized MoneyBox     !!!!!!')
+    
     //endregion
 
 
@@ -72,6 +69,11 @@ module.exports = async (deployer) => {
     await BitacoraPlayContract.call('initialize', [process.env.USDT_IMPL, moneyBoxAddress, moneyBoxSettingsAddress]);
     console.log('BitacoraPlay initialized   !!!!!!!!')
     //endregion
+
+    console.log('Initializing MoneyBox')
+    // todo: enlazar bitacora con moneyBox
+    await MoneyBoxContract.call('initialize', [process.env.USDT_IMPL, moneyBoxSettingsAddress, bitacoraPlayAddress]);
+    console.log('Initialized MoneyBox     !!!!!!')
 
     // console.debug('\n\n[SAVE CONTRACTS ADDRESS] starting .... \n');
     // saveContractsInfo(bitacoraPlayAddress, moneyBoxAddress, moneyBoxSettingsAddress);
