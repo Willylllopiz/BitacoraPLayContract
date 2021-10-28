@@ -71,7 +71,6 @@ module.exports = async (deployer) => {
     //endregion
 
     console.log('Initializing MoneyBox')
-    // todo: enlazar bitacora con moneyBox
     await MoneyBoxContract.call('initialize', [process.env.USDT_IMPL, moneyBoxSettingsAddress, bitacoraPlayAddress]);
     console.log('Initialized MoneyBox     !!!!!!')
 
