@@ -3,9 +3,8 @@ pragma solidity ^0.6.2;
 
 import "./BitacoraPlayBasic.sol";
 import "./ISettingsBasic.sol";
-import "./IBitacoraPlay.sol";
 
-contract BitacoraPlay is BitacoraPlayBasic, IBitacoraPlay {
+contract BitacoraPlay is BitacoraPlayBasic {
     event SignUpEvent(string externalId, address indexed _newUser, uint indexed _userId, address indexed _sponsor, uint _sponsorId, uint _expireIn);
     event UserPayedReferredPlan(address indexed _user, uint _expireIn);
     event UserPayedCareerPlan(address indexed _user);
@@ -402,12 +401,12 @@ contract BitacoraPlay is BitacoraPlayBasic, IBitacoraPlay {
         );
     }
 
-    function getReferrer(address _userAddress) public view override returns(address){
-        require(isUserExists(_userAddress) && _userAddress != rootAddress, 'user not valid');
+    function getReferrer(address _userAddress) public view returns(address){
+        require(isUserExists(_userAddress) && _userAddress != rootAddress);
         return users[_userAddress].sponsor;
     }
 
-    function isUserExists(address user) public view override(IBitacoraPlay, BitacoraPlayBasic) returns (bool) {
+    function isUserExists(address user) public view override returns (bool) {
         return (users[user].id != 0);
     }
 
@@ -415,25 +414,24 @@ contract BitacoraPlay is BitacoraPlayBasic, IBitacoraPlay {
         return (users[user].id, users[user].sponsor);
     }
 
-    function isActivatedMembership(address _user) public view override returns(bool) {
-        require(isUserExists(_user), "BitacoraPlay: user is not exists. Register first.");
+    function isActivatedMembership(address _user) public view returns(bool) {
+        require(isUserExists(_user));
         return block.timestamp <= users[_user].expirationTime;
     }    
 
-    function signUp(address _sponsorAddress, string calldata _externalId) external returns(string memory){
+    function signUp(address _sponsorAddress, string calldata _externalId) external {
         registration(_sponsorAddress, _externalId);
-        return "registration successful!!";
     }
 
     function createUserByAdmin(address _userAddress, address _sponsorAddress, string memory _externalId) public restricted{
-        require(!isUserExists(_userAddress), "user exists");
+        require(!isUserExists(_userAddress));
         _sponsorAddress = isUserExists(_sponsorAddress) ? _sponsorAddress : rootAddress;
        
         uint32 size;
         assembly {
             size := extcodesize(_userAddress)
         }
-        require(size == 0, "cannot be a contract");
+        require(size == 0);
 
         idToAddress[lastUserId] = _userAddress;
         users[_userAddress].id = lastUserId;
@@ -447,15 +445,15 @@ contract BitacoraPlay is BitacoraPlayBasic, IBitacoraPlay {
     }
 
     function registration(address sponsorAddress, string memory externalId) private {
-        require(!isUserExists(msg.sender), "user exists");
-        require(isUserExists(sponsorAddress), "sponsor not exists");
+        require(!isUserExists(msg.sender));
+        require(isUserExists(sponsorAddress));
 
         uint32 size;
         address _newUser = msg.sender;
         assembly {
             size := extcodesize(_newUser)
         }
-        require(size == 0, "cannot be a contract");
+        require(size == 0);
 
         idToAddress[lastUserId] = msg.sender;
         users[msg.sender].id = lastUserId;
@@ -468,10 +466,9 @@ contract BitacoraPlay is BitacoraPlayBasic, IBitacoraPlay {
     }
 
     function payMonthly() external {
-        require(isUserExists(msg.sender), "BitacoraPlay: user is not exists. Register first.");
+        require(isUserExists(msg.sender));
         require(
-            !isActivatedMembership(msg.sender) || users[msg.sender].expirationTime - block.timestamp <= 8 days,
-            "user already active this month."
+            !isActivatedMembership(msg.sender) || users[msg.sender].expirationTime - block.timestamp <= 8 days
         );
         emit UserPayedReferredPlan(
             msg.sender,
@@ -556,10 +553,10 @@ contract BitacoraPlay is BitacoraPlayBasic, IBitacoraPlay {
 
 // Start Region Career
     function payCareerPlanActivation() external {
-        require(isUserExists(msg.sender), "Career: user is not exists. Register first.");
+        require(isUserExists(msg.sender));
         User storage userInfo = users[msg.sender];
-        require(isActivatedMembership(msg.sender), "Career: has not paid monthly payment");
-        require(!userInfo.careerIsActive, "Career: user is already active in career plan");
+        require(isActivatedMembership(msg.sender));
+        require(!userInfo.careerIsActive);
         depositToken.safeTransferFrom(msg.sender, address(this), careerPlanConfig.planPrice);
         globalBalance += careerPlanConfig.planPrice;
 
@@ -597,12 +594,12 @@ contract BitacoraPlay is BitacoraPlayBasic, IBitacoraPlay {
         
     // Distribute the academic excellence bonus to a list of users !!!
     function setUsersAcademicExcellenceBonus( address[] memory _winningUsers) public restricted{
-        require(_winningUsers.length  > 0, "BitacoraPlay: empty list");
-        require(accumulatedAcademicExcellenceBonus/_winningUsers.length  > 0, "BitacoraPlay: not valid individual amount");
+        require(_winningUsers.length  > 0);
+        require(accumulatedAcademicExcellenceBonus/_winningUsers.length  > 0);
         uint toDistribute = accumulatedAcademicExcellenceBonus/_winningUsers.length;
         for (uint256 index = 0; index < _winningUsers.length; index++) {
-            require(isUserExists(_winningUsers[index]), "BitacoraPlay: user is not exists.");
-            require(accumulatedAcademicExcellenceBonus > toDistribute, "BitacoraPlay: not valid individual amount");
+            require(isUserExists(_winningUsers[index]));
+            require(accumulatedAcademicExcellenceBonus > toDistribute);
             users[_winningUsers[index]].pendingPayments.himSelf += toDistribute;
             accumulatedAcademicExcellenceBonus -= toDistribute;
             emit BonusAvailableToCollectEvent(_winningUsers[index], users[_winningUsers[index]].id, 0, 5, toDistribute);
@@ -617,10 +614,10 @@ contract BitacoraPlay is BitacoraPlayBasic, IBitacoraPlay {
 
 // Start Region Prosumer
     function payProsumerPlan() external {
-        require(isActivatedMembership(msg.sender), "Prosumer: user is not active this month.");
+        require(isActivatedMembership(msg.sender));
         User storage userInfo = users[msg.sender];
-        require(userInfo.careerIsActive , "Prosumer: user is not active in Career Plan");
-        require(!userInfo.prosumerIsActive, "Prosumer: user is already active in Prosumer Plan");
+        require(userInfo.careerIsActive );
+        require(!userInfo.prosumerIsActive);
         userInfo.prosumerIsActive = true;
         userInfo.prosumerInfo.degree = 1;
         emit UserPayedProsumerPlan(msg.sender);
@@ -642,14 +639,14 @@ contract BitacoraPlay is BitacoraPlayBasic, IBitacoraPlay {
     }
 
     function setProsumerDegreeByAdmin(address _userAddress, uint8 _degree) external restricted {
-        require(_degree > 0, 'Prosumer: level no valid!!');
+        require(_degree > 0);
         users[msg.sender].prosumerIsActive = true;
         users[_userAddress].prosumerInfo.degree = _degree;
         emit ChangedProsumerDegreeByAdmin(msg.sender, _userAddress, _degree);
     }
 
     function addProsumerByAdmin(address _userAddress, uint8 _degree, address _sponsorAddress, string calldata _externalId) external restricted {
-        require(!isUserExists(_userAddress), "user exists");
+        require(!isUserExists(_userAddress));
 
         createUserByAdmin(_userAddress, _sponsorAddress, _externalId);
 
@@ -667,11 +664,11 @@ contract BitacoraPlay is BitacoraPlayBasic, IBitacoraPlay {
 
 // Start Region Courses
     function setCourse(string calldata _courseId, address _prosumerAuthor, uint8 _cycle, uint _price, uint _amountToProsumer) external restricted returns(uint) {
-        require(isUserExists(_prosumerAuthor), "Course: user is not exists. Register first.");
-        require(users[_prosumerAuthor].prosumerIsActive, "Course: user is not a Prosumer");
-        require(isActivatedMembership(_prosumerAuthor), "Course: user is not active this month.");
-        require(_price > _amountToProsumer, 'Course: price and amountToProsumer no valid');
-        require(_cycle <= degreePerCycleConfig[users[_prosumerAuthor].prosumerInfo.degree], "Course: this author does not make in this cycle");
+        require(isUserExists(_prosumerAuthor));
+        require(users[_prosumerAuthor].prosumerIsActive);
+        require(isActivatedMembership(_prosumerAuthor));
+        require(_price > _amountToProsumer);
+        require(_cycle <= degreePerCycleConfig[users[_prosumerAuthor].prosumerInfo.degree]);
         courses[_courseId] = Course({
             id: _courseId, 
             cycle: _cycle, 
@@ -684,11 +681,11 @@ contract BitacoraPlay is BitacoraPlayBasic, IBitacoraPlay {
     }
 
     function setUserApprovedCourse(string calldata _courseId, address _user) external restricted{        
-        require(isUserExists(_user), "Course: user is not Exist");
+        require(isUserExists(_user));
         Course storage _course = courses[_courseId];
-        require(keccak256(abi.encodePacked(_course.id)) != keccak256(abi.encodePacked("")), "Courses: course is not exists");
-        require(_course.userCourse[_user].bought, 'Courses: User has not buy this video.');
-        require(!_course.userCourse[_user].approved,'Courses: User already approved this video.');
+        require(keccak256(abi.encodePacked(_course.id)) != keccak256(abi.encodePacked("")));
+        require(_course.userCourse[_user].bought);
+        require(!_course.userCourse[_user].approved);
         if(users[_user].academicInfo.cycle < cycleCount){
             users[_user].academicInfo.cycle++;
             emit UserCycleIncresed(_user, users[_user].academicInfo.cycle);
@@ -700,16 +697,15 @@ contract BitacoraPlay is BitacoraPlayBasic, IBitacoraPlay {
     }
 
     function buyCourse(string calldata _courseId) external {
-        require(isActivatedMembership(msg.sender), "Courses: user is not active this month.");
+        require(isActivatedMembership(msg.sender));
         User storage userInfo = users[msg.sender];  
-        require(userInfo.careerIsActive, "Course: user is not active in Career Plan");      
+        require(userInfo.careerIsActive);      
         Course storage _course = courses[_courseId];
-        require(keccak256(abi.encodePacked(_course.id)) != keccak256(abi.encodePacked("")), "Courses: course is not exists");  
-        require(userInfo.academicInfo.cycle <= _course.cycle, 'Courses: user cycle no valid');
-        require(!_course.userCourse[msg.sender].bought , 'Courses: User already bought  this video');
+        require(keccak256(abi.encodePacked(_course.id)) != keccak256(abi.encodePacked("")));  
+        require(userInfo.academicInfo.cycle <= _course.cycle);
+        require(!_course.userCourse[msg.sender].bought );
         require(userInfo.academicInfo.accumulatedDirectToSeeCourse >= 
-            degreeCycleXAccumullatesToSeeConfig[_course.degree][_course.cycle].assetsDirect, 
-            "Courses: user is not ready to watch this video");
+            degreeCycleXAccumullatesToSeeConfig[_course.degree][_course.cycle].assetsDirect);
         require(userInfo.academicInfo.accumulatedCoursePay >= degreeCycleXAccumullatesToSeeConfig[_course.degree][_course.cycle]. coursePaymentByCycle);
            
        //Mark course viewed by user  
@@ -727,7 +723,7 @@ contract BitacoraPlay is BitacoraPlayBasic, IBitacoraPlay {
         ProsumerInfo storage _proInfo = users[_prosumer].prosumerInfo;
         for (uint8 index = 1; index <= cycleCount; index++) {
             if(_proInfo.degreeXCycleXViewsCount[_proInfo.degree][index] < viewsCycleConfig[_proInfo.degree][index]){
-                return ;
+                return;
             }
         }
         for (uint8 index = 1; index <= cycleCount; index++) {
@@ -739,13 +735,13 @@ contract BitacoraPlay is BitacoraPlayBasic, IBitacoraPlay {
     }
 
     function buyCourseDirectlyByUser(string calldata _courseId, uint _amount) external {
-        require(keccak256(abi.encodePacked(courses[_courseId].id)) != keccak256(abi.encodePacked("")), "Courses: course is not exists");  
-        require(isActivatedMembership(msg.sender), "Courses: user is not active this month."); 
-        require(users[msg.sender].careerIsActive, "Course: user is not active in Career Plan");  
+        require(keccak256(abi.encodePacked(courses[_courseId].id)) != keccak256(abi.encodePacked("")));  
+        require(isActivatedMembership(msg.sender)); 
+        require(users[msg.sender].careerIsActive);  
         Course storage _course = courses[_courseId];
-        require(!_course.userCourse[msg.sender].bought , 'Courses: User already saw this video');
-        require(_course.extraPrice <= _amount && _amount > 0, 'Courses: amount no valid');  
-        require(users[msg.sender].academicInfo.cycle <= _course.cycle, 'Courses: user cycle no valid');
+        require(!_course.userCourse[msg.sender].bought );
+        require(_course.extraPrice <= _amount && _amount > 0);  
+        require(users[msg.sender].academicInfo.cycle <= _course.cycle);
         depositToken.safeTransferFrom(msg.sender, address(this), _amount);
         globalBalance += _amount;
         setPendingPayments(_course.prosumerAuthor, 0, 0, _course.amountToProsumer,  _amount - _course.amountToProsumer, 0, 0);
@@ -756,9 +752,9 @@ contract BitacoraPlay is BitacoraPlayBasic, IBitacoraPlay {
 
 // Start Region Withdrawals
     function withdrawUserBonusByAdmin(uint _amount, address _user) external override restricted safeTransferAmount(_amount){
-        require(0 < _amount, "BitacoraPlay: Invalid amount");
-        require(isUserExists(_user), "BitacoraPlay: user is not Exist");
-        require(_amount <= users[_user].pendingPayments.adminBonus, "BitacoraPlay: insufficient funds");
+        require(0 < _amount);
+        require(isUserExists(_user));
+        require(_amount <= users[_user].pendingPayments.adminBonus);
         depositToken.safeTransfer(msg.sender, _amount);
         globalBalance -= _amount;
         users[_user].pendingPayments.adminBonus -= _amount;
@@ -766,9 +762,9 @@ contract BitacoraPlay is BitacoraPlayBasic, IBitacoraPlay {
     }
 
     function witdrawUserFounds(uint _amount) external override safeTransferAmount(_amount){
-        require(isUserExists(msg.sender), "user is not exists");
-        require(0 < _amount, "BitacoraPlay: Invalid amount");
-        require(_amount <= users[msg.sender].pendingPayments.himSelf && _amount <= users[msg.sender].balance, "BitacoraPlay: insufficient funds");
+        require(isUserExists(msg.sender));
+        require(0 < _amount);
+        require(_amount <= users[msg.sender].pendingPayments.himSelf && _amount <= users[msg.sender].balance);
         depositToken.safeTransfer(msg.sender, _amount);
         users[msg.sender].pendingPayments.himSelf -= _amount;
         users[msg.sender].balance -= _amount;
@@ -777,9 +773,9 @@ contract BitacoraPlay is BitacoraPlayBasic, IBitacoraPlay {
     }
 
     function userInvestmentInMoneyBox(uint _amount, uint8 _categoryId) external override safeTransferAmount(_amount) {
-        require(isUserExists(msg.sender), "user is not exists");
-        require(_amount <= users[msg.sender].pendingPayments.moneyBox, "BitacoraPlay: insufficient funds");
-        require(_amount > 0, "BitacoraPlay: invalid amount");
+        require(isUserExists(msg.sender));
+        require(_amount <= users[msg.sender].pendingPayments.moneyBox);
+        require(_amount > 0);
         depositToken.safeIncreaseAllowance(address(moneyBox), _amount);
         moneyBox.depositFoundsFromBitacora(msg.sender, _categoryId, _amount);
         users[msg.sender].pendingPayments.moneyBox -= _amount;

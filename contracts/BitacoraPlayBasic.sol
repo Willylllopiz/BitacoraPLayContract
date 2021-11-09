@@ -20,8 +20,8 @@ abstract contract BitacoraPlayBasic is CommonBasic {
     ISettingsBasic settingsBasic;
 
     modifier restricted() {
-        require(!_locked || msg.sender == _owner, "BitacoraPlay: locked");
-        require(settingsBasic.isAdmin(msg.sender), "BitacoraPlay: Only admins");
+        require(!_locked || msg.sender == _owner);
+        require(settingsBasic.isAdmin(msg.sender));
         _;
     }
 
@@ -33,8 +33,8 @@ abstract contract BitacoraPlayBasic is CommonBasic {
     function isUserExists(address _user) public view virtual returns (bool);
 
     function withdrawAdminFounds(uint _amount) external restricted safeTransferAmount(_amount){
-        require(0 < _amount, "BitacoraPlay: Invalid amount");
-        require(_amount <= administrativeBalance, "BitacoraPlay: insufficient funds");
+        require(0 < _amount);
+        require(_amount <= administrativeBalance);
         depositToken.safeTransfer(msg.sender, _amount);
         administrativeBalance -= _amount;
         globalBalance -= _amount;
